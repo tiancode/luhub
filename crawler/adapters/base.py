@@ -36,7 +36,11 @@ class Adapter(ABC):
         while pg <= page_count:
             resp = self.fetch_page(pg, hours=hours, **opts)
             pc = resp.get("pagecount")
-            if isinstance(pc, int) and pc > 0:
+            try:
+                pc = int(pc)  # 容错：有些站把 pagecount 返回成字符串
+            except (TypeError, ValueError):
+                pc = None
+            if pc and pc > 0:
                 page_count = min(pages, pc)
             yield resp
             pg += 1

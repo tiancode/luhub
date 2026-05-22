@@ -39,6 +39,11 @@ class HtmlExampleAdapter(Adapter):
                 "HTML 适配器需要 httpx 与 beautifulsoup4：pip install -r crawler/requirements.txt"
             ) from e
 
+        raise NotImplementedError(
+            "HtmlExampleAdapter 是模板：请按下方参考骨架填入选择器与详情页解析，完成后删除本行 raise。"
+        )
+
+        # —— 以下为参考骨架（删除上面的 raise 后改写启用；在此之前不会执行）——
         list_url = f"{self.base_url}/list/?page={page}"
         html = httpx.get(
             list_url,
@@ -73,11 +78,7 @@ class HtmlExampleAdapter(Adapter):
                 }
             )
 
-        raise NotImplementedError(
-            "HtmlExampleAdapter 是模板：请填入选择器与详情页解析后删除本行。"
-        )
-
-        # 填好后返回如下结构（删除上面的 raise 即可启用）：
+        # 填好后返回如下结构：
         # return {
         #     "code": 1,
         #     "page": page,

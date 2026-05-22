@@ -32,8 +32,11 @@ export function runPythonCrawler(
     const child = spawn(py, args, { cwd: opts.cwd ?? process.cwd() });
     let out = "";
     let err = "";
-    child.stdout.on("data", (d) => (out += d.toString()));
-    child.stderr.on("data", (d) => (err += d.toString()));
+    // setEncoding 让 Node 的 StringDecoder 跨 chunk 缓冲，正确解码被切断的多字节字符（中文）。
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (d) => (out += d));
+    child.stderr.on("data", (d) => (err += d));
     child.on("error", reject);
     child.on("close", (code) => {
       if (code !== 0) {

@@ -14,7 +14,10 @@ interface Args {
 function parseArgs(argv: string[]): Args {
   const a: Args = { pages: 5 };
   for (const x of argv) {
-    const [k, v] = x.replace(/^--/, "").split("=");
+    const body = x.replace(/^--/, "");
+    const eq = body.indexOf("=");
+    const k = eq === -1 ? body : body.slice(0, eq);
+    const v = eq === -1 ? undefined : body.slice(eq + 1); // 只按首个 = 切分，保留 URL 查询串
     switch (k) {
       case "adapter":
         a.adapter = v;
