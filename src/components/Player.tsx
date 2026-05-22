@@ -15,58 +15,109 @@ export interface PlayerLine {
 }
 
 const isHls = (url: string) => /\.m3u8(\?|#|$)/i.test(url);
+const P2P_KEY = "luhub_p2p";
 
 export function Player({ lines }: { lines: PlayerLine[] }) {
   const [lineIdx, setLineIdx] = useState(0);
   const [epIdx, setEpIdx] = useState(0);
   const [error, setError] = useState(false);
+  const [p2pEnabled, setP2pEnabled] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const prevUrlRef = useRef<string | undefined>(undefined);
+  const resumeRef = useRef(0);
 
   const line = lines[lineIdx];
   const episodes = line?.episodes ?? [];
   const ep = episodes[epIdx];
   const url = ep?.url;
 
+  // 读取持久化的 P2P 偏好（默认开启）。放 effect 里避免 SSR 水合不一致：
+  // 服务端按默认渲染，客户端挂载后再校正——这正是该规则的合理例外。
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(P2P_KEY) === "0") {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setP2pEnabled(false);
+      }
+    } catch {}
+  }, []);
+
+  function toggleP2p() {
+    setP2pEnabled((on) => {
+      const next = !on;
+      try {
+        window.localStorage.setItem(P2P_KEY, next ? "1" : "0");
+      } catch {}
+      return next;
+    });
+  }
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !url) return;
     setError(false);
 
-    // 切换剧集/线路后主动起播（autoPlay 属性只在首次挂载生效）；
-    // 失败多为浏览器自动播放策略限制，忽略即可，用户可手动点播放。
-    const tryPlay = () => void video.play().catch(() => {});
+    // 仅当因切换 P2P 开关而重建（url 未变）时续播，避免换集从头开始。
+    // 进度在上一次清理（destroy 前）已存入 resumeRef；换集时 url 变 → 不续播。
+    const sameUrl = prevUrlRef.current === url;
+    const resumeAt = sameUrl ? resumeRef.current : 0;
+    prevUrlRef.current = url;
 
-    // 直链（mp4 等）或 Safari 原生 HLS：直接交给 <video>
+    const tryPlay = () => {
+      if (resumeAt > 0) {
+        try {
+          video.currentTime = resumeAt;
+        } catch {}
+      }
+      void video.play().catch(() => {});
+    };
+
+    // 直链（mp4 等）或 Safari 原生 HLS：直接交给 <video>（P2P 仅作用于 hls.js）
     if (!isHls(url) || video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = url;
       tryPlay();
-      return;
+      return () => {
+        resumeRef.current = video.currentTime;
+      };
     }
 
-    // 其余浏览器用 hls.js 播放 m3u8
     let hls: HlsType | null = null;
     let cancelled = false;
-    import("hls.js").then(({ default: Hls }) => {
+
+    (async () => {
+      const { default: Hls } = await import("hls.js");
       if (cancelled) return;
-      if (Hls.isSupported()) {
-        hls = new Hls();
-        hls.on(Hls.Events.MANIFEST_PARSED, tryPlay);
-        hls.on(Hls.Events.ERROR, (_evt, data) => {
-          if (data.fatal) setError(true);
-        });
-        hls.loadSource(url);
-        hls.attachMedia(video);
-      } else {
+      if (!Hls.isSupported()) {
         video.src = url;
         tryPlay();
+        return;
       }
-    });
+
+      if (p2pEnabled) {
+        // P2P 加速：分片优先从 WebRTC 对等端获取，取不到回源 HTTP。
+        // 同一播放地址 = 同一 swarm（默认按 manifest URL 归组），看同片的人互相提速。
+        const { HlsJsP2PEngine } = await import("p2p-media-loader-hlsjs");
+        if (cancelled) return;
+        const HlsWithP2P = HlsJsP2PEngine.injectMixin(Hls);
+        hls = new HlsWithP2P({ p2p: { core: {} } }) as unknown as HlsType;
+      } else {
+        hls = new Hls();
+      }
+
+      hls.on(Hls.Events.MANIFEST_PARSED, tryPlay);
+      hls.on(Hls.Events.ERROR, (_evt, data) => {
+        if (data.fatal) setError(true);
+      });
+      hls.loadSource(url);
+      hls.attachMedia(video);
+    })();
 
     return () => {
       cancelled = true;
+      resumeRef.current = video.currentTime; // 在 destroy 重置前抓住进度
       hls?.destroy();
     };
-  }, [url]);
+  }, [url, p2pEnabled]);
 
   function selectLine(i: number) {
     setLineIdx(i);
@@ -97,14 +148,31 @@ export function Player({ lines }: { lines: PlayerLine[] }) {
           <span className="truncate text-muted">
             正在播放：{line?.fromName} · {ep?.name}
           </span>
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="shrink-0 text-muted hover:text-primary"
-          >
-            外部打开
-          </a>
+          <div className="flex shrink-0 items-center gap-3">
+            {isHls(url) && (
+              <button
+                type="button"
+                onClick={toggleP2p}
+                aria-pressed={p2pEnabled}
+                title="P2P 加速：与正在看同一视频的人互相分担流量。关闭后仅走源站。"
+                className={`rounded border px-2 py-1 text-xs transition-colors ${
+                  p2pEnabled
+                    ? "border-primary text-primary"
+                    : "border-border text-muted hover:text-foreground"
+                }`}
+              >
+                P2P 加速：{p2pEnabled ? "开" : "关"}
+              </button>
+            )}
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted hover:text-primary"
+            >
+              外部打开
+            </a>
+          </div>
         </div>
       )}
 
