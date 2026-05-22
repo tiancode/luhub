@@ -1,6 +1,6 @@
 # LuHub 影视 —— 视频资源聚合站
 
-参考 yhdm.one（樱花动漫）从零搭建的**综合影视资源聚合站**。采集标准 maccms 资源接口（并支持 HTML 站点适配器补充），将元数据 + 播放地址入库，再以自建前端展示。
+从零搭建的**综合影视资源聚合站**。采集标准 maccms 资源接口（并支持 HTML 站点适配器补充），将元数据 + 播放地址入库，再以自建前端展示。
 
 > 本期 MVP 聚焦：**浏览 + 筛选**（首页 / 分类列表 / 按分类·地区·年份·剧种筛选 / 分页 / 影片详情）。在线播放器（hls.js）、站内搜索、采集后台为后续迭代。
 
@@ -48,7 +48,7 @@ src/
   collect/
     parse.ts               vod_play_url 解析（纯函数，可单测）
     maccms.ts              采集 + 入库（fetch / ingestResponse / syncSource）
-    html/                  HTML 站点适配器接口 + yhdm.one 骨架
+    html/                  HTML 站点适配器接口 + 示例骨架
   lib/                     prisma 单例 / 查询 / 常量 / 列表参数
   components/              Header/Footer/VideoCard/FilterBar/Pagination/...
   app/                     /(首页) /list /latest /vod/[id]
