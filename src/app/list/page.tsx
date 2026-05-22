@@ -4,7 +4,7 @@ import { GROUP_LABELS } from "@/lib/constants";
 import { FilterBar } from "@/components/FilterBar";
 import { VideoGrid } from "@/components/VideoGrid";
 import { Pagination } from "@/components/Pagination";
-import type { ListParams } from "@/lib/listParams";
+import { buildListHref, type ListParams } from "@/lib/listParams";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +69,11 @@ export default async function ListPage({
 
       <VideoGrid videos={videos} />
 
-      <Pagination current={current} page={page} totalPages={totalPages} />
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        makeHref={(p) => buildListHref(current, { page: p })}
+      />
     </div>
   );
 }

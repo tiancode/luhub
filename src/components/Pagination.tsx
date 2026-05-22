@@ -1,14 +1,13 @@
 import Link from "next/link";
-import { buildListHref, type ListParams } from "@/lib/listParams";
 
 export function Pagination({
-  current,
   page,
   totalPages,
+  makeHref,
 }: {
-  current: ListParams;
   page: number;
   totalPages: number;
+  makeHref: (page: number) => string;
 }) {
   if (totalPages <= 1) return null;
 
@@ -30,29 +29,29 @@ export function Pagination({
   return (
     <nav className="flex items-center justify-center gap-1.5 mt-8 flex-wrap">
       {page > 1 && (
-        <Link href={buildListHref(current, { page: page - 1 })} className={linkCls(false)}>
+        <Link href={makeHref(page - 1)} className={linkCls(false)}>
           上一页
         </Link>
       )}
       {start > 1 && (
-        <Link href={buildListHref(current, { page: 1 })} className={linkCls(false)}>
+        <Link href={makeHref(1)} className={linkCls(false)}>
           1
         </Link>
       )}
       {start > 2 && <span className="px-2 text-muted">…</span>}
       {pages.map((p) => (
-        <Link key={p} href={buildListHref(current, { page: p })} className={linkCls(p === page)}>
+        <Link key={p} href={makeHref(p)} className={linkCls(p === page)}>
           {p}
         </Link>
       ))}
       {end < totalPages - 1 && <span className="px-2 text-muted">…</span>}
       {end < totalPages && (
-        <Link href={buildListHref(current, { page: totalPages })} className={linkCls(false)}>
+        <Link href={makeHref(totalPages)} className={linkCls(false)}>
           {totalPages}
         </Link>
       )}
       {page < totalPages && (
-        <Link href={buildListHref(current, { page: page + 1 })} className={linkCls(false)}>
+        <Link href={makeHref(page + 1)} className={linkCls(false)}>
           下一页
         </Link>
       )}

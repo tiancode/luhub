@@ -57,6 +57,33 @@ export async function getVideoList(q: ListQuery) {
   };
 }
 
+export async function searchVideos(keyword: string, page = 1) {
+  const kw = keyword.trim();
+  if (!kw) {
+    return { videos: [] as VideoCardData[], total: 0, page: 1, totalPages: 1 };
+  }
+  const where: Prisma.VideoWhereInput = { name: { contains: kw } };
+  const p = Math.max(1, page);
+
+  const [total, videos] = await Promise.all([
+    prisma.video.count({ where }),
+    prisma.video.findMany({
+      where,
+      select: cardSelect,
+      orderBy: [{ releasedAt: { sort: "desc", nulls: "last" } }, { id: "desc" }],
+      skip: (p - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+    }),
+  ]);
+
+  return {
+    videos: videos as VideoCardData[],
+    total,
+    page: p,
+    totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+  };
+}
+
 export async function getFacets(group?: string) {
   const scope: Prisma.VideoWhereInput = group ? { category: { group } } : {};
 
