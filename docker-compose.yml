@@ -1,0 +1,17 @@
+# Unraid（Compose Manager 插件）/ 任意 Docker 主机。
+# 网站 + 爬虫同一容器；SQLite 持久化到挂载卷。
+services:
+  luhub:
+    container_name: luhub
+    build: .
+    image: luhub:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      ADMIN_PASSWORD: "change-me"        # ← 改成你的后台登录密码（必填）
+      DATABASE_URL: "file:/data/dev.db"  # 数据库落在挂载卷上
+      # SEED: "1"                        # 首次想灌示例数据时临时打开，起来后删掉
+      # ADMIN_SECRET: ""                 # 可选：cookie 令牌密钥（不填用密码派生）
+    volumes:
+      - /mnt/user/appdata/luhub:/data    # Unraid appdata；DB 持久 + 记得纳入备份
