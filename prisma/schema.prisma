@@ -1,0 +1,109 @@
+// luhub —— 视频资源聚合站 数据模型
+// 文档: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+/// 资源站（采集来源）
+model Source {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  apiUrl     String
+  kind       String   @default("maccms_json") // maccms_json | maccms_xml | html
+  enabled    Boolean  @default(true)
+  lastSyncAt DateTime?
+  createdAt  DateTime @default(now())
+
+  videos       Video[]
+  categoryMaps CategoryMap[]
+}
+
+/// 本站统一分类
+model Category {
+  id        Int    @id @default(autoincrement())
+  name      String
+  slug      String @unique
+  group     String @default("other") // movie | tv | variety | anime | other
+  sortOrder Int    @default(0)
+
+  videos       Video[]
+  categoryMaps CategoryMap[]
+}
+
+/// 资源站 type_id -> 本站分类 的映射
+model CategoryMap {
+  id           Int    @id @default(autoincrement())
+  sourceId     Int
+  remoteTypeId Int
+  remoteName   String?
+  categoryId   Int
+
+  source   Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, remoteTypeId])
+}
+
+/// 影片
+model Video {
+  id          Int      @id @default(autoincrement())
+  sourceId    Int
+  sourceVodId String // 资源站的 vod_id
+  name        String
+  slug        String?
+  pic         String?
+  remarks     String? // vod_remarks，如“更新至12集”
+  year        Int?
+  area        String?
+  lang        String?
+  actor       String?
+  director    String?
+  content     String?
+  score       Float?
+  categoryId  Int?
+  releasedAt  DateTime? // vod_time
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  source      Source       @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  category    Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  playSources PlaySource[]
+
+  @@unique([sourceId, sourceVodId])
+  @@index([categoryId])
+  @@index([year])
+  @@index([area])
+  @@index([releasedAt])
+}
+
+/// 播放线路（对应 vod_play_from 的每一组）
+model PlaySource {
+  id        Int    @id @default(autoincrement())
+  videoId   Int
+  fromName  String
+  sortOrder Int    @default(0)
+
+  video    Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  episodes Episode[]
+
+  @@index([videoId])
+}
+
+/// 剧集
+model Episode {
+  id           Int    @id @default(autoincrement())
+  playSourceId Int
+  name         String
+  url          String
+  sortOrder    Int    @default(0)
+
+  playSource PlaySource @relation(fields: [playSourceId], references: [id], onDelete: Cascade)
+
+  @@index([playSourceId])
+}

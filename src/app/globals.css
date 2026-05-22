@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0f1115;
+  --surface: #181b22;
+  --surface-2: #20242d;
+  --foreground: #e6e8eb;
+  --muted: #9aa3af;
+  --primary: #ff5c8a;
+  --border: #2a2f3a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-border: var(--border);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", Arial, sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
