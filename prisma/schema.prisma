@@ -22,6 +22,26 @@ model Source {
 
   videos       Video[]
   categoryMaps CategoryMap[]
+  collectRuns  CollectRun[]
+}
+
+/// 采集任务运行记录
+model CollectRun {
+  id         Int       @id @default(autoincrement())
+  sourceId   Int
+  status     String    @default("running") // running | success | failed
+  pages      Int?
+  hours      Int?
+  full       Boolean   @default(false)
+  videos     Int       @default(0)
+  categories Int       @default(0)
+  message    String? // onProgress 累加的进度日志 / 错误信息
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId, startedAt])
 }
 
 /// 本站统一分类

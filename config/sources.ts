@@ -1,5 +1,7 @@
 // 资源站（采集来源）配置 —— 由部署者自行填入符合 maccms V10 标准的资源接口。
 //
+// 注意：采集后台（/admin）以数据库中的资源站为准；此文件仅供 `pnpm collect` CLI / CI 使用。
+//
 // 接口约定（maccms V10）:
 //   端点:  https://站点/api.php/provide/vod/
 //   参数:  ac=detail（含播放地址）| ac=list（仅元数据）、t=分类id、pg=页码、
