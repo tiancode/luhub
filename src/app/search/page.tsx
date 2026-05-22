@@ -2,20 +2,14 @@ import type { Metadata } from "next";
 import { searchVideos } from "@/lib/videos";
 import { VideoGrid } from "@/components/VideoGrid";
 import { Pagination } from "@/components/Pagination";
+import { pick, type SearchParamsPromise } from "@/lib/searchParams";
 
 export const dynamic = "force-dynamic";
-
-type SearchParams = Promise<Record<string, string | string[] | undefined>>;
-
-function pick(v: string | string[] | undefined): string | undefined {
-  const s = Array.isArray(v) ? v[0] : v;
-  return s && s.length > 0 ? s : undefined;
-}
 
 export async function generateMetadata({
   searchParams,
 }: {
-  searchParams: SearchParams;
+  searchParams: SearchParamsPromise;
 }): Promise<Metadata> {
   const sp = await searchParams;
   const wd = pick(sp.wd);
@@ -25,7 +19,7 @@ export async function generateMetadata({
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: SearchParams;
+  searchParams: SearchParamsPromise;
 }) {
   const sp = await searchParams;
   const wd = pick(sp.wd) ?? "";
@@ -53,7 +47,10 @@ export default async function SearchPage({
       {wd ? (
         <>
           <div className="mb-3 text-sm text-muted">共 {total} 个结果</div>
-          <VideoGrid videos={videos} />
+          <VideoGrid
+            videos={videos}
+            emptyText={`没有找到与“${wd}”相关的影片`}
+          />
           <Pagination page={cur} totalPages={totalPages} makeHref={makeHref} />
         </>
       ) : (

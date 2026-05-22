@@ -57,27 +57,38 @@ export async function getVideoList(q: ListQuery) {
   };
 }
 
+/** 转义 LIKE 通配符，使 % _ \ 按字面量匹配（配合 ESCAPE '\'） */
+function escapeLike(s: string): string {
+  return s.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
 export async function searchVideos(keyword: string, page = 1) {
   const kw = keyword.trim();
   if (!kw) {
     return { videos: [] as VideoCardData[], total: 0, page: 1, totalPages: 1 };
   }
-  const where: Prisma.VideoWhereInput = { name: { contains: kw } };
+  const pattern = `%${escapeLike(kw)}%`;
   const p = Math.max(1, page);
+  const offset = (p - 1) * PAGE_SIZE;
 
-  const [total, videos] = await Promise.all([
-    prisma.video.count({ where }),
-    prisma.video.findMany({
-      where,
-      select: cardSelect,
-      orderBy: [{ releasedAt: { sort: "desc", nulls: "last" } }, { id: "desc" }],
-      skip: (p - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-    }),
+  // Prisma 的 `contains` 不会转义 LIKE 通配符且不带 ESCAPE 子句，故用参数化原始 SQL。
+  const [countRows, videos] = await Promise.all([
+    prisma.$queryRaw<{ count: number | bigint }[]>`
+      SELECT COUNT(*) AS "count" FROM "Video" WHERE "name" LIKE ${pattern} ESCAPE '\\'
+    `,
+    prisma.$queryRaw<VideoCardData[]>`
+      SELECT "id", "name", "pic", "remarks", "year", "area"
+      FROM "Video"
+      WHERE "name" LIKE ${pattern} ESCAPE '\\'
+      ORDER BY "releasedAt" DESC NULLS LAST, "id" DESC
+      LIMIT ${PAGE_SIZE} OFFSET ${offset}
+    `,
   ]);
 
+  const total = Number(countRows[0]?.count ?? 0);
+
   return {
-    videos: videos as VideoCardData[],
+    videos,
     total,
     page: p,
     totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),

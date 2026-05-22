@@ -5,20 +5,14 @@ import { FilterBar } from "@/components/FilterBar";
 import { VideoGrid } from "@/components/VideoGrid";
 import { Pagination } from "@/components/Pagination";
 import { buildListHref, type ListParams } from "@/lib/listParams";
+import { pick, type SearchParamsPromise } from "@/lib/searchParams";
 
 export const dynamic = "force-dynamic";
-
-type SearchParams = Promise<Record<string, string | string[] | undefined>>;
-
-function pick(v: string | string[] | undefined): string | undefined {
-  const s = Array.isArray(v) ? v[0] : v;
-  return s && s.length > 0 ? s : undefined;
-}
 
 export async function generateMetadata({
   searchParams,
 }: {
-  searchParams: SearchParams;
+  searchParams: SearchParamsPromise;
 }): Promise<Metadata> {
   const sp = await searchParams;
   const group = pick(sp.group);
@@ -29,7 +23,7 @@ export async function generateMetadata({
 export default async function ListPage({
   searchParams,
 }: {
-  searchParams: SearchParams;
+  searchParams: SearchParamsPromise;
 }) {
   const sp = await searchParams;
   const current: ListParams = {

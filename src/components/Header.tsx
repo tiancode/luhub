@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { GROUPS, SITE_NAME } from "@/lib/constants";
+import { SearchBox } from "@/components/SearchBox";
 
 const navItems = [
   { href: "/", label: "首页" },
@@ -25,15 +27,9 @@ export function Header() {
             </Link>
           ))}
         </nav>
-        <form action="/search" className="shrink-0">
-          <input
-            type="search"
-            name="wd"
-            placeholder="搜索影片…"
-            aria-label="搜索影片"
-            className="w-28 sm:w-48 px-3 py-1.5 rounded bg-surface-2 border border-border text-sm placeholder:text-muted focus:outline-none focus:border-primary transition-colors"
-          />
-        </form>
+        <Suspense fallback={<div className="w-28 sm:w-48 shrink-0" />}>
+          <SearchBox />
+        </Suspense>
       </div>
     </header>
   );

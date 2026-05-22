@@ -32,9 +32,14 @@ export function Player({ lines }: { lines: PlayerLine[] }) {
     if (!video || !url) return;
     setError(false);
 
+    // 切换剧集/线路后主动起播（autoPlay 属性只在首次挂载生效）；
+    // 失败多为浏览器自动播放策略限制，忽略即可，用户可手动点播放。
+    const tryPlay = () => void video.play().catch(() => {});
+
     // 直链（mp4 等）或 Safari 原生 HLS：直接交给 <video>
     if (!isHls(url) || video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = url;
+      tryPlay();
       return;
     }
 
@@ -45,6 +50,7 @@ export function Player({ lines }: { lines: PlayerLine[] }) {
       if (cancelled) return;
       if (Hls.isSupported()) {
         hls = new Hls();
+        hls.on(Hls.Events.MANIFEST_PARSED, tryPlay);
         hls.on(Hls.Events.ERROR, (_evt, data) => {
           if (data.fatal) setError(true);
         });
@@ -52,6 +58,7 @@ export function Player({ lines }: { lines: PlayerLine[] }) {
         hls.attachMedia(video);
       } else {
         video.src = url;
+        tryPlay();
       }
     });
 
