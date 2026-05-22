@@ -28,6 +28,30 @@ pip install -r crawler/requirements.txt
 pnpm collect:py --adapter=html_example --base-url=https://站点 --name=某站
 ```
 
+## 本地 mock 站点（测试）
+
+纯测试用的仿真站点（假数据、假 m3u8，无任何真实第三方内容），用于离线开发与
+调通"列表 → 同域详情 → 解析 m3u8 → 入库"全流程，不接触任何真实站点。
+
+一键 demo（起 mock 服务 → 采集入库 → 自动关服务）：
+
+```bash
+pnpm demo:mock
+# 可选: PORT=8901 PAGES=5 NAME=本地Mock站 pnpm demo:mock
+```
+
+或手动两步：
+
+```bash
+# 终端 1：启动 mock 站点
+python3 -m crawler.mocksite.server --port 8900
+# 终端 2：用 mocksite 适配器站内爬取并入库
+pnpm collect:py --adapter=mocksite --base-url=http://127.0.0.1:8900 --name=本地Mock站 --pages=5
+```
+
+`crawler/adapters/mocksite.py` 演示了真实的站内爬取写法（urllib 抓取 + BeautifulSoup
+解析，列表页跟随同域详情链接、组装多线路 m3u8），可作为编写真实站点适配器的范本。
+
 ## 输出契约
 
 `python -m crawler.run` 向 **stdout** 打印一个 JSON 数组，每个元素是一页 maccms

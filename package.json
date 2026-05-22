@@ -14,6 +14,7 @@
     "db:reset": "prisma migrate reset --force",
     "collect": "tsx scripts/collect.ts",
     "collect:py": "tsx scripts/collect-py.ts",
+    "demo:mock": "bash scripts/demo-mock.sh",
     "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
