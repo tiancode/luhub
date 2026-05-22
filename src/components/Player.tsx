@@ -24,16 +24,21 @@ export function Player({ lines }: { lines: PlayerLine[] }) {
   const [p2pEnabled, setP2pEnabled] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const prevUrlRef = useRef<string | undefined>(undefined);
+  const resumeRef = useRef(0);
 
   const line = lines[lineIdx];
   const episodes = line?.episodes ?? [];
   const ep = episodes[epIdx];
   const url = ep?.url;
 
-  // 读取持久化的 P2P 偏好（默认开启）。放 effect 里避免 SSR 水合不一致。
+  // 读取持久化的 P2P 偏好（默认开启）。放 effect 里避免 SSR 水合不一致：
+  // 服务端按默认渲染，客户端挂载后再校正——这正是该规则的合理例外。
   useEffect(() => {
     try {
-      if (window.localStorage.getItem(P2P_KEY) === "0") setP2pEnabled(false);
+      if (window.localStorage.getItem(P2P_KEY) === "0") {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setP2pEnabled(false);
+      }
     } catch {}
   }, []);
 
@@ -53,8 +58,9 @@ export function Player({ lines }: { lines: PlayerLine[] }) {
     setError(false);
 
     // 仅当因切换 P2P 开关而重建（url 未变）时续播，避免换集从头开始。
+    // 进度在上一次清理（destroy 前）已存入 resumeRef；换集时 url 变 → 不续播。
     const sameUrl = prevUrlRef.current === url;
-    const resumeAt = sameUrl ? video.currentTime : 0;
+    const resumeAt = sameUrl ? resumeRef.current : 0;
     prevUrlRef.current = url;
 
     const tryPlay = () => {
@@ -70,7 +76,9 @@ export function Player({ lines }: { lines: PlayerLine[] }) {
     if (!isHls(url) || video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = url;
       tryPlay();
-      return;
+      return () => {
+        resumeRef.current = video.currentTime;
+      };
     }
 
     let hls: HlsType | null = null;
@@ -106,6 +114,7 @@ export function Player({ lines }: { lines: PlayerLine[] }) {
 
     return () => {
       cancelled = true;
+      resumeRef.current = video.currentTime; // 在 destroy 重置前抓住进度
       hls?.destroy();
     };
   }, [url, p2pEnabled]);
