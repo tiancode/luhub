@@ -81,6 +81,14 @@ tests/parse.test.ts        解析单测
 | `pnpm test` | 运行解析单测 |
 | `pnpm lint` | 代码检查 |
 
+## 自托管（Docker / Unraid）
+网站 + Python 爬虫打在同一镜像,SQLite 持久化到挂载卷,适合家用 NAS 常驻运行。
+```bash
+docker compose up -d --build      # 改好 docker-compose.yml 里的 ADMIN_PASSWORD
+# 访问 http://<主机IP>:3000 ，后台 /admin
+```
+Unraid 部署、定时采集(User Scripts)、反代/远程访问见 [`docker/README.md`](docker/README.md)。
+
 ## 后续规划
 1. 定时采集（外部 cron 触发受密钥保护的接口）
 2. 播放历史 / 收藏
