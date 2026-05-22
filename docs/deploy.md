@@ -21,7 +21,8 @@ pnpm install
 # 3) 配 .env（见下）
 cp .env.example .env && $EDITOR .env
 
-# 4) 建表（+ 可选示例数据）
+# 4) 准备数据目录（= DATABASE_URL 的父目录；SQLite 不会自动创建父目录），再建表
+sudo mkdir -p /var/lib/luhub && sudo chown "$USER":"$USER" /var/lib/luhub
 pnpm db:deploy          # = prisma migrate deploy
 # pnpm db:seed          # 可选：灌离线示例，方便先看界面
 
@@ -134,6 +135,7 @@ sudo systemctl restart luhub
 
 ## 注意
 
+- **运行用户一致**:项目目录与数据目录(`DATABASE_URL` 的父目录)需归 systemd 里的运行用户(示例为 `luhub`)所有;否则服务无权读写。
 - **SQLite 单写**:同一个库别跑多个应用实例;批量采集已串行。
 - **备份**:定期备份 `DATABASE_URL` 指向的 `.db` 文件。
 - 改 `.env` 后 **重启服务** 生效;改 `prisma/schema.prisma` 后先 `pnpm db:deploy`。
