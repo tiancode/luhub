@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getVideoDetail } from "@/lib/videos";
 import { GROUP_LABELS } from "@/lib/constants";
+import { Player } from "@/components/Player";
 
 export const dynamic = "force-dynamic";
 
@@ -74,33 +75,13 @@ export default async function VodDetailPage({ params }: { params: Params }) {
         </section>
       )}
 
-      <section className="space-y-5">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold">播放列表</h2>
-          <span className="text-xs text-muted">（在线播放器开发中，暂为源地址）</span>
-        </div>
-        {video.playSources.length === 0 && (
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">在线播放</h2>
+        {video.playSources.length === 0 ? (
           <p className="text-sm text-muted">暂无播放资源。</p>
+        ) : (
+          <Player lines={video.playSources} />
         )}
-        {video.playSources.map((ps) => (
-          <div key={ps.id}>
-            <h3 className="text-sm font-medium mb-2">{ps.fromName}</h3>
-            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-8 gap-2">
-              {ps.episodes.map((ep) => (
-                <a
-                  key={ep.id}
-                  href={ep.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-2 py-1.5 rounded text-sm text-center bg-surface border border-border text-muted hover:text-foreground hover:border-primary truncate"
-                  title={ep.name}
-                >
-                  {ep.name}
-                </a>
-              ))}
-            </div>
-          </div>
-        ))}
       </section>
     </article>
   );
