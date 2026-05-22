@@ -89,6 +89,8 @@ docker compose up -d --build      # 改好 docker-compose.yml 里的 ADMIN_PASSW
 ```
 Unraid 部署、定时采集(User Scripts)、反代/远程访问见 [`docker/README.md`](docker/README.md)。
 
+不想用 Docker?直接用 Node 部署(systemd + 反代 + cron)见 [`docs/deploy.md`](docs/deploy.md)。
+
 ## 后续规划
 1. 定时采集（外部 cron 触发受密钥保护的接口）
 2. 播放历史 / 收藏
