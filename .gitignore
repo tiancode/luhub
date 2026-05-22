@@ -39,6 +39,11 @@ yarn-error.log*
 *.db-journal
 *.sqlite
 
+# python crawler
+__pycache__/
+*.pyc
+.venv/
+
 # vercel
 .vercel
 

@@ -13,6 +13,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma migrate reset --force",
     "collect": "tsx scripts/collect.ts",
+    "collect:py": "tsx scripts/collect-py.ts",
     "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {

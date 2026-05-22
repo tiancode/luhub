@@ -1,0 +1,7 @@
+# maccms 适配器仅用 Python 标准库，无需安装任何依赖。
+#
+# 仅当使用 HTML 网页采集（html_* 适配器）时才需要以下依赖：
+httpx>=0.27
+beautifulsoup4>=4.12
+# 可选：更快的解析器（BeautifulSoup(html, "lxml")）；不装则用标准库 html.parser
+lxml>=5.0
