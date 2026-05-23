@@ -10,6 +10,18 @@ let active = 0;
 const queue: { id: number; resolve: () => void }[] = [];
 const inFlight = new Map<number, Promise<void>>();
 
+// 队列是否完全空闲（无在执行/排队/在途任务）。空闲预缓存据此判断该不该挑下一集。
+export function isCacheQueueIdle(): boolean {
+  return active === 0 && queue.length === 0 && inFlight.size === 0;
+}
+
+// 队列排空时的回调（由 instrumentation 注册为空闲预缓存的 tick）。
+// 用「注册」而非直接 import idle 模块，避免 cache ↔ idle 的循环依赖。
+let onDrain: (() => void) | null = null;
+export function setDrainHook(fn: (() => void) | null): void {
+  onDrain = fn;
+}
+
 // 把缓存任务排入队列（默认并发 1，尊重 SQLite 单写、避免打爆源站/ffmpeg）。
 // 同一 id 正在排队/执行则复用同一 promise（去重）。返回的 promise 在该任务完成后 resolve。
 export function enqueueCacheJob(id: number): Promise<void> {
@@ -32,6 +44,14 @@ function pump(): void {
         inFlight.delete(id);
         resolve();
         pump();
+        // 队列彻底排空 → 触发空闲预缓存挑下一集（自维持循环）。
+        if (onDrain && isCacheQueueIdle()) {
+          try {
+            onDrain();
+          } catch (e) {
+            console.error("[cache] drain 钩子异常:", e);
+          }
+        }
       });
   }
 }
