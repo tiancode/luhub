@@ -4,7 +4,10 @@
 import { prisma } from "@/lib/prisma";
 import { syncSource } from "@/collect/maccms";
 import { syncViaPython } from "@/collect/python";
+import { beginRun, endRun } from "./runControl";
 import type { SourceConfig, SourceKind } from "../../../config/sources";
+
+const LOG_TAIL = 300; // 实时日志只保留最近 N 行,避免 CollectRun.message 过大
 
 export interface CollectOptions {
   pages?: number;
@@ -36,19 +39,29 @@ export async function runCollect(
   source: SourceSnapshot,
   opts: CollectOptions,
 ): Promise<void> {
+  // 「采集全部」队列里若某条在轮到前已被暂停(状态被改),直接跳过。
+  const cur = await prisma.collectRun.findUnique({
+    where: { id: runId },
+    select: { status: true },
+  });
+  if (cur && cur.status !== "running") return;
+
+  const signal = beginRun(runId);
   const pages = opts.full ? 99999 : opts.pages ?? 5;
   const hours = opts.full ? undefined : opts.hours;
 
   const log: string[] = [];
+  const tail = () => log.slice(-LOG_TAIL).join("\n");
   let lastFlush = 0;
   const onProgress = (m: string) => {
     log.push(m);
+    if (log.length > LOG_TAIL * 2) log.splice(0, log.length - LOG_TAIL); // 限制内存
     const now = Date.now();
-    if (now - lastFlush > 2000) {
+    if (now - lastFlush > 1000) {
       lastFlush = now;
-      // 节流写库,便于前台轮询看到进度;忽略偶发写冲突。
+      // 节流写库,便于前台轮询实时看到日志;忽略偶发写冲突。
       prisma.collectRun
-        .update({ where: { id: runId }, data: { message: log.join("\n") } })
+        .update({ where: { id: runId }, data: { message: tail() } })
         .catch(() => {});
     }
   };
@@ -65,19 +78,28 @@ export async function runCollect(
     const stats = usePython
       ? await syncViaPython(
           source.id,
-          { adapter: source.adapter as string, baseUrl: source.apiUrl, pages, hours },
+          { adapter: source.adapter as string, baseUrl: source.apiUrl, pages, hours, signal },
           onProgress,
         )
-      : await syncSource(dbSourceToConfig(source), { pages, hours, delayMs: 500, onProgress });
+      : await syncSource(dbSourceToConfig(source), {
+          pages,
+          hours,
+          delayMs: 500,
+          onProgress,
+          signal,
+        });
 
+    // 暂停:syncSource/syncViaPython 在 abort 时优雅返回已采集的部分统计。
+    const paused = signal.aborted;
+    if (paused) log.push("— 已暂停;已采集的已入库,再次「开始采集」可续采。");
     await prisma.collectRun.update({
       where: { id: runId },
       data: {
-        status: "success",
+        status: paused ? "paused" : "success",
         videos: stats.videos,
         categories: stats.categories,
         finishedAt: new Date(),
-        message: log.join("\n") || null,
+        message: tail() || null,
       },
     });
   } catch (e) {
@@ -86,8 +108,10 @@ export async function runCollect(
       data: {
         status: "failed",
         finishedAt: new Date(),
-        message: [...log, `错误: ${(e as Error).message}`].join("\n"),
+        message: [...log.slice(-LOG_TAIL), `错误: ${(e as Error).message}`].join("\n"),
       },
     });
+  } finally {
+    endRun(runId);
   }
 }

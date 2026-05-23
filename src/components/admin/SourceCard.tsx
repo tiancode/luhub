@@ -1,12 +1,17 @@
 import {
   runCollectAction,
+  pauseCollectAction,
   toggleSourceAction,
   deleteSourceAction,
   updateSourceAction,
 } from "@/lib/admin/actions";
 import type { getSourcesWithRuns } from "@/lib/admin/queries";
 import { StatusBadge } from "./StatusBadge";
+import { CollectLog } from "./CollectLog";
 import { fmtDateTime } from "@/lib/admin/format";
+
+const pauseBtn =
+  "px-3 py-1.5 rounded text-sm border border-amber-500/40 text-amber-400 hover:bg-amber-500/10 transition-colors";
 
 type SourceWithRuns = Awaited<ReturnType<typeof getSourcesWithRuns>>[number];
 
@@ -26,6 +31,8 @@ function runDesc(r: SourceWithRuns["collectRuns"][number]): string {
 }
 
 export function SourceCard({ source }: { source: SourceWithRuns }) {
+  const latest = source.collectRuns[0];
+  const isRunning = latest?.status === "running";
   return (
     <div className="rounded-lg bg-surface border border-border p-4 space-y-3">
       <div className="flex items-center gap-3 flex-wrap">
@@ -45,37 +52,52 @@ export function SourceCard({ source }: { source: SourceWithRuns }) {
       </div>
       <p className="text-xs text-muted break-all">{source.apiUrl}</p>
 
-      {/* 采集 */}
-      <form action={runCollectAction} className="flex items-end gap-2 flex-wrap">
-        <input type="hidden" name="id" value={source.id} />
-        <label className="text-xs text-muted flex flex-col gap-1">
-          页数
-          <input
-            name="pages"
-            type="number"
-            min={1}
-            defaultValue={5}
-            className={`${inputCls} w-20`}
-          />
-        </label>
-        <label className="text-xs text-muted flex flex-col gap-1">
-          增量(小时)
-          <input
-            name="hours"
-            type="number"
-            min={1}
-            placeholder="可选"
-            className={`${inputCls} w-24`}
-          />
-        </label>
-        <label className="text-xs text-muted flex items-center gap-1 pb-2">
-          <input name="full" type="checkbox" value="1" />
-          全量
-        </label>
-        <button type="submit" className={primaryBtn}>
-          开始采集
-        </button>
-      </form>
+      {/* 采集 / 暂停 */}
+      {isRunning ? (
+        <form action={pauseCollectAction} className="flex items-center gap-2 flex-wrap">
+          <input type="hidden" name="runId" value={latest?.id} />
+          <span className="text-xs text-primary animate-pulse">采集进行中…</span>
+          <button type="submit" className={pauseBtn}>
+            暂停
+          </button>
+        </form>
+      ) : (
+        <form action={runCollectAction} className="flex items-end gap-2 flex-wrap">
+          <input type="hidden" name="id" value={source.id} />
+          <label className="text-xs text-muted flex flex-col gap-1">
+            页数
+            <input
+              name="pages"
+              type="number"
+              min={1}
+              defaultValue={5}
+              className={`${inputCls} w-20`}
+            />
+          </label>
+          <label className="text-xs text-muted flex flex-col gap-1">
+            增量(小时)
+            <input
+              name="hours"
+              type="number"
+              min={1}
+              placeholder="可选"
+              className={`${inputCls} w-24`}
+            />
+          </label>
+          <label className="text-xs text-muted flex items-center gap-1 pb-2">
+            <input name="full" type="checkbox" value="1" />
+            全量
+          </label>
+          <button type="submit" className={primaryBtn}>
+            {latest?.status === "paused" ? "继续采集" : "开始采集"}
+          </button>
+        </form>
+      )}
+
+      {/* 实时采集日志(最近一次运行) */}
+      {(isRunning || latest?.message) && (
+        <CollectLog text={latest?.message ?? ""} running={isRunning} />
+      )}
 
       {/* 管理 */}
       <div className="flex items-center gap-2 flex-wrap">

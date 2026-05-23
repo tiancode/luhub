@@ -25,6 +25,7 @@ export interface PythonCrawlOptions {
   python?: string; // python 可执行文件,默认 env PYTHON_BIN 或 "python3"
   cwd?: string; // 运行目录,默认 process.cwd()(需含 crawler/ 包)
   resume?: boolean; // 默认 true:跳过该源已采集的 vod_id(断点续采);增量(hours)模式自动不跳过
+  signal?: AbortSignal; // 暂停信号:置位后杀掉子进程,已入库的保留(返回部分统计)
 }
 
 function buildArgs(opts: PythonCrawlOptions, seenFile?: string): string[] {
@@ -78,6 +79,18 @@ export async function syncViaPython(
   try {
     await new Promise<void>((resolve, reject) => {
       const child = spawn(py, args, { cwd: opts.cwd ?? process.cwd() });
+      // 暂停:收到 abort 即杀掉子进程;已逐行入库的保留,close 时按部分结算。
+      const onAbort = () => {
+        try {
+          child.kill();
+        } catch {
+          /* 已退出 */
+        }
+      };
+      if (opts.signal) {
+        if (opts.signal.aborted) child.kill();
+        else opts.signal.addEventListener("abort", onAbort, { once: true });
+      }
       // stderr 仅用于失败时的错误信息,只保留尾部,避免长时间采集时无限增长。
       const STDERR_CAP = 64 * 1024;
       let err = "";
@@ -122,10 +135,12 @@ export async function syncViaPython(
 
       child.on("error", reject);
       child.on("close", (code) => {
+        opts.signal?.removeEventListener("abort", onAbort);
         // 等待入库队列排空后再结算。
         chain
           .then(() => {
-            if (fatal) reject(fatal);
+            if (opts.signal?.aborted) resolve(); // 暂停:已入库的保留,按部分统计正常返回
+            else if (fatal) reject(fatal);
             else if (code !== 0)
               reject(new Error(`python 采集器退出码 ${code}:${err.trim()}`));
             else resolve();

@@ -131,10 +131,12 @@ function buildUrl(apiUrl: string, params: Record<string, string | number>): stri
 async function fetchMaccms(
   apiUrl: string,
   params: Record<string, string | number>,
+  signal?: AbortSignal,
 ): Promise<MaccmsResponse> {
   const target = buildUrl(apiUrl, params);
   const res = await fetch(target, {
     headers: { "User-Agent": "Mozilla/5.0 (luhub collector)" },
+    signal,
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${target}`);
   return (await res.json()) as MaccmsResponse;
@@ -147,13 +149,14 @@ export interface SyncOptions {
   hours?: number; // 仅采集最近 h 小时内更新（增量）
   delayMs?: number; // 每页间隔，限速
   onProgress?: (msg: string) => void;
+  signal?: AbortSignal; // 暂停信号：置位后在页间停止（已入库的保留）
 }
 
 export async function syncSource(
   config: SourceConfig,
   opts: SyncOptions = {},
 ): Promise<IngestStats> {
-  const { pages = 5, hours, delayMs = 500, onProgress } = opts;
+  const { pages = 5, hours, delayMs = 500, onProgress, signal } = opts;
 
   const source = await prisma.source.upsert({
     where: { name: config.name },
@@ -165,9 +168,16 @@ export async function syncSource(
   let pageCount = pages;
 
   for (let pg = 1; pg <= pageCount; pg++) {
+    if (signal?.aborted) break; // 暂停:页间停止,已入库的保留
     const params: Record<string, string | number> = { ac: "detail", pg };
     if (hours) params.h = hours;
-    const resp = await fetchMaccms(config.apiUrl, params);
+    let resp: MaccmsResponse;
+    try {
+      resp = await fetchMaccms(config.apiUrl, params, signal);
+    } catch (e) {
+      if (signal?.aborted) break; // 在途请求被 abort 打断:按暂停处理
+      throw e;
+    }
 
     if (typeof resp.pagecount === "number") {
       pageCount = Math.min(pages, resp.pagecount);

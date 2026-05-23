@@ -8,6 +8,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { requireAdmin, setSession, clearSession } from "./session";
 import { verifyPassword } from "./auth";
 import { runCollect, type CollectOptions, type SourceSnapshot } from "./collect";
+import { requestPause } from "./runControl";
 
 // ---------- 鉴权 ----------
 
@@ -167,6 +168,23 @@ export async function collectAllAction(formData: FormData): Promise<void> {
     }
   });
 
+  revalidatePath("/admin/sources");
+  revalidatePath("/admin");
+  redirect("/admin/sources");
+}
+
+export async function pauseCollectAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const runId = Number(formData.get("runId"));
+  if (runId) {
+    // 运行中 -> 立即 abort(子进程被杀 / 页间停止);其 runCollect 随后会写入“已暂停”+部分统计。
+    requestPause(runId);
+    // 同时落库 paused:让“采集全部”队列里尚未轮到的任务被跳过,且 UI 立即反映。
+    await prisma.collectRun.updateMany({
+      where: { id: runId, status: "running" },
+      data: { status: "paused", finishedAt: new Date() },
+    });
+  }
   revalidatePath("/admin/sources");
   revalidatePath("/admin");
   redirect("/admin/sources");

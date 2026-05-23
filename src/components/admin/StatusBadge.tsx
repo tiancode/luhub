@@ -2,6 +2,7 @@ const MAP: Record<string, { label: string; cls: string }> = {
   running: { label: "采集中", cls: "bg-primary/20 text-primary" },
   success: { label: "成功", cls: "bg-green-500/15 text-green-400" },
   failed: { label: "失败", cls: "bg-red-500/15 text-red-400" },
+  paused: { label: "已暂停", cls: "bg-amber-500/15 text-amber-400" },
 };
 
 export function StatusBadge({ status }: { status: string }) {
