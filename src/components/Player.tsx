@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type HlsType from "hls.js";
 import { requestEpisodeCache } from "@/lib/cache/actions";
+import { recordHistory } from "@/lib/library/actions";
 
 export interface PlayerEpisode {
   id: number;
@@ -20,15 +21,31 @@ const isHls = (url: string) => /\.m3u8(\?|#|$)/i.test(url);
 const P2P_KEY = "luhub_p2p";
 // 看够这么多秒（或看完）才通知服务端缓存：只缓存真正在看的，避免快速点选时把路过的剧集排进队列。
 const CACHE_TRIGGER_SECONDS = 15;
+// 观看历史：看够这么多秒才开始记（过滤误点），并每隔 INTERVAL 节流上报一次进度。
+const HISTORY_MIN_SECONDS = 5;
+const HISTORY_INTERVAL_MS = 10_000;
 
-export function Player({ videoId, lines }: { videoId: number; lines: PlayerLine[] }) {
-  const [lineIdx, setLineIdx] = useState(0);
-  const [epIdx, setEpIdx] = useState(0);
+export function Player({
+  videoId,
+  lines,
+  initialLineIdx = 0,
+  initialEpIdx = 0,
+  resumePosition = 0,
+}: {
+  videoId: number;
+  lines: PlayerLine[];
+  initialLineIdx?: number;
+  initialEpIdx?: number;
+  resumePosition?: number;
+}) {
+  const [lineIdx, setLineIdx] = useState(initialLineIdx);
+  const [epIdx, setEpIdx] = useState(initialEpIdx);
   const [error, setError] = useState(false);
   const [p2pEnabled, setP2pEnabled] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const prevUrlRef = useRef<string | undefined>(undefined);
-  const resumeRef = useRef(0);
+  // 当前 url 期望续播到的位置：初值=历史续播点（首集生效），之后由清理时的 currentTime 维护（P2P 重建续上）。
+  const resumeRef = useRef(resumePosition);
 
   const line = lines[lineIdx];
   const episodes = line?.episodes ?? [];
@@ -61,19 +78,36 @@ export function Player({ videoId, lines }: { videoId: number; lines: PlayerLine[
     if (!video || !url) return;
     setError(false);
 
-    // 仅当因切换 P2P 开关而重建（url 未变）时续播，避免换集从头开始。
-    // 进度在上一次清理（destroy 前）已存入 resumeRef；换集时 url 变 → 不续播。
+    // 续播位置：同一 url(仅因切 P2P 而重建) → 接上次进度；首次挂载(首集) → 历史续播点；
+    // 换到别的集 → 从头(0)。进度在上一次清理（destroy 前）已存入 resumeRef。
     const sameUrl = prevUrlRef.current === url;
-    const resumeAt = sameUrl ? resumeRef.current : 0;
+    const firstMount = prevUrlRef.current === undefined;
+    // 真正换集：清掉上一集残留的续播点，免得随后在本集 currentTime 还是 0 时切 P2P，
+    // 被 cleanup 的 >0 守卫保住旧值、重建时误跳到上一集的进度。
+    if (!sameUrl && !firstMount) resumeRef.current = 0;
+    const resumeAt = sameUrl || firstMount ? resumeRef.current : 0;
     prevUrlRef.current = url;
 
+    // 元数据未就绪时直接设 currentTime 会被忽略，故挂 loadedmetadata 等就绪再 seek；
+    // <video> 元素跨集复用，故该监听必须在 cleanup 里摘掉——否则切集后旧监听会把新集跳到旧进度。
+    let metaSeek: (() => void) | null = null;
     const tryPlay = () => {
       if (resumeAt > 0) {
-        try {
-          video.currentTime = resumeAt;
-        } catch {}
+        const seek = () => {
+          try {
+            video.currentTime = resumeAt;
+          } catch {}
+        };
+        if (video.readyState >= 1) seek();
+        else {
+          metaSeek = seek;
+          video.addEventListener("loadedmetadata", seek, { once: true });
+        }
       }
       void video.play().catch(() => {});
+    };
+    const clearMetaSeek = () => {
+      if (metaSeek) video.removeEventListener("loadedmetadata", metaSeek);
     };
 
     // 直链（mp4 等）或 Safari 原生 HLS：直接交给 <video>（P2P 仅作用于 hls.js）
@@ -81,7 +115,10 @@ export function Player({ videoId, lines }: { videoId: number; lines: PlayerLine[
       video.src = url;
       tryPlay();
       return () => {
-        resumeRef.current = video.currentTime;
+        clearMetaSeek();
+        // >0 守卫：若续播 seek 尚未生效（currentTime 仍为 0），别把 resumeRef 覆盖成 0，
+        // 否则 P2P 重建会丢掉历史续播点。
+        if (video.currentTime > 0) resumeRef.current = video.currentTime;
       };
     }
 
@@ -118,7 +155,8 @@ export function Player({ videoId, lines }: { videoId: number; lines: PlayerLine[
 
     return () => {
       cancelled = true;
-      resumeRef.current = video.currentTime; // 在 destroy 重置前抓住进度
+      clearMetaSeek();
+      if (video.currentTime > 0) resumeRef.current = video.currentTime; // destroy 重置前抓进度（同上守卫）
       hls?.destroy();
     };
   }, [url, p2pEnabled]);
@@ -150,6 +188,55 @@ export function Player({ videoId, lines }: { videoId: number; lines: PlayerLine[
     return () => {
       video.removeEventListener("timeupdate", onTime);
       video.removeEventListener("ended", trigger);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url]);
+
+  // 观看历史 + 续播进度上报：看够 HISTORY_MIN_SECONDS 秒才开始记，节流每 HISTORY_INTERVAL_MS 上报一次，
+  // 暂停/看完/切集/卸载各补记一次。进度存进闭包变量(由 timeupdate 维护)，不在清理时读 currentTime——
+  // 避免清理顺序里 hls.destroy 已把 currentTime 重置为 0 导致记成 0、覆盖掉真实续播点。
+  useEffect(() => {
+    if (!url || !line || !ep) return;
+    const video = videoRef.current;
+    if (!video) return;
+    const lineName = line.fromName;
+    const epName = ep.name;
+    const curEp = epIdx;
+
+    let lastPos = 0;
+    let lastDur: number | null = null;
+    let lastSent = 0;
+
+    const send = (force: boolean) => {
+      if (lastPos < HISTORY_MIN_SECONDS) return; // 看太短不记，过滤误点
+      const now = Date.now();
+      if (!force && now - lastSent < HISTORY_INTERVAL_MS) return;
+      lastSent = now;
+      void recordHistory({
+        videoId,
+        lineName,
+        epName,
+        epIndex: curEp,
+        position: lastPos,
+        duration: lastDur,
+      }).catch(() => {});
+    };
+
+    const onTime = () => {
+      if (video.currentTime > 0) lastPos = video.currentTime;
+      if (Number.isFinite(video.duration) && video.duration > 0) lastDur = video.duration;
+      send(false);
+    };
+    const onPause = () => send(true);
+
+    video.addEventListener("timeupdate", onTime);
+    video.addEventListener("pause", onPause);
+    video.addEventListener("ended", onPause);
+    return () => {
+      video.removeEventListener("timeupdate", onTime);
+      video.removeEventListener("pause", onPause);
+      video.removeEventListener("ended", onPause);
+      send(true); // 切集/卸载补记最终进度
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url]);

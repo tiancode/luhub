@@ -7,6 +7,7 @@ const navItems = [
   { href: "/", label: "首页" },
   ...GROUPS.map((g) => ({ href: `/list?group=${g.key}`, label: g.label })),
   { href: "/latest", label: "最近更新" },
+  { href: "/me", label: "我的" },
 ];
 
 export function Header() {

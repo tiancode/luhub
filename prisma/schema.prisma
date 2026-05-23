@@ -97,6 +97,8 @@ model Video {
   category       Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   playSources    PlaySource[]
   cachedEpisodes CachedEpisode[]
+  favorites      Favorite[]
+  watchHistory   WatchHistory[]
 
   @@unique([sourceId, sourceVodId])
   @@index([categoryId])
@@ -154,4 +156,35 @@ model CachedEpisode {
 
   @@unique([videoId, lineName, epName])
   @@index([videoId, status])
+}
+
+/// 匿名访客的收藏。无登录，靠 cookie(luhub_vid)里的随机 visitorId 定位用户。
+model Favorite {
+  id        Int      @id @default(autoincrement())
+  visitorId String // cookie 里的随机 UUID
+  videoId   Int
+  createdAt DateTime @default(now())
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([visitorId, videoId])
+  @@index([visitorId, createdAt])
+}
+
+/// 匿名访客的观看历史（每访客每影片一条，记录最近线路/集与续播进度）。
+model WatchHistory {
+  id        Int      @id @default(autoincrement())
+  visitorId String
+  videoId   Int
+  lineName  String? // 最近播放的线路名（vod_play_from 的某条）
+  epName    String? // 最近播放的集名
+  epIndex   Int      @default(0) // 集在该线路里的序号（续播定位，线路重建后兜底）
+  position  Float    @default(0) // 播放进度（秒）
+  duration  Float? // 该集总时长（秒），用于进度条/判断是否看完
+  updatedAt DateTime @updatedAt
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([visitorId, videoId])
+  @@index([visitorId, updatedAt])
 }
