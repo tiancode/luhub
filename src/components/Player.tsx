@@ -140,7 +140,7 @@ export function Player({ videoId, lines }: { videoId: number; lines: PlayerLine[
       fired = true;
       video!.removeEventListener("timeupdate", onTime);
       video!.removeEventListener("ended", trigger);
-      void requestEpisodeCache({ videoId, lineName, epName, url }).catch(() => {});
+      void requestEpisodeCache({ videoId, lineName, epName }).catch(() => {});
     }
     function onTime() {
       if (video!.currentTime >= CACHE_TRIGGER_SECONDS) trigger();

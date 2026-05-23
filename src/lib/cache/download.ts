@@ -66,6 +66,8 @@ export async function remuxHls(url: string, absFile: string): Promise<number> {
     "-y",
     "-user_agent", UA,
     "-rw_timeout", String(STALL_MS * 1000), // ffmpeg 自身 I/O 超时（微秒），坏流早退
+    // 限制协议白名单（不含 file），防止恶意 m3u8 用 file:// 读取本地文件并混进输出。
+    "-protocol_whitelist", "http,https,tcp,tls,crypto,data",
     "-i", url,
     "-c", "copy",
     "-bsf:a", "aac_adtstoasc", // ADTS(AAC) -> MP4 容器所需

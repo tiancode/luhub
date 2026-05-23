@@ -23,3 +23,8 @@ export function requestPause(runId: number): boolean {
   ctrl.abort();
   return true;
 }
+
+/** 该运行是否仍在进程内活动(尚未 endRun)。续采前用它避免与正在收尾的旧任务抢同一 runId。 */
+export function isRunActive(runId: number): boolean {
+  return controllers.has(runId);
+}

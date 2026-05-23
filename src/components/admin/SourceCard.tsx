@@ -1,6 +1,7 @@
 import {
   runCollectAction,
   pauseCollectAction,
+  resumeCollectAction,
   toggleSourceAction,
   deleteSourceAction,
   updateSourceAction,
@@ -62,36 +63,51 @@ export function SourceCard({ source }: { source: SourceWithRuns }) {
           </button>
         </form>
       ) : (
-        <form action={runCollectAction} className="flex items-end gap-2 flex-wrap">
-          <input type="hidden" name="id" value={source.id} />
-          <label className="text-xs text-muted flex flex-col gap-1">
-            页数
-            <input
-              name="pages"
-              type="number"
-              min={1}
-              defaultValue={5}
-              className={`${inputCls} w-20`}
-            />
-          </label>
-          <label className="text-xs text-muted flex flex-col gap-1">
-            增量(小时)
-            <input
-              name="hours"
-              type="number"
-              min={1}
-              placeholder="可选"
-              className={`${inputCls} w-24`}
-            />
-          </label>
-          <label className="text-xs text-muted flex items-center gap-1 pb-2">
-            <input name="full" type="checkbox" value="1" />
-            全量
-          </label>
-          <button type="submit" className={primaryBtn}>
-            {latest?.status === "paused" ? "继续采集" : "开始采集"}
-          </button>
-        </form>
+        <div className="space-y-2">
+          {latest?.status === "paused" && (
+            <form action={resumeCollectAction} className="flex items-center gap-2 flex-wrap">
+              <input type="hidden" name="runId" value={latest.id} />
+              <button type="submit" className={primaryBtn}>
+                继续采集
+              </button>
+              <span className="text-xs text-muted">
+                {source.adapter
+                  ? "从上次中断处续采（跳过已采）"
+                  : `从第 ${latest.lastPage + 1} 页继续`}
+              </span>
+            </form>
+          )}
+          <form action={runCollectAction} className="flex items-end gap-2 flex-wrap">
+            <input type="hidden" name="id" value={source.id} />
+            <label className="text-xs text-muted flex flex-col gap-1">
+              页数
+              <input
+                name="pages"
+                type="number"
+                min={1}
+                defaultValue={5}
+                className={`${inputCls} w-20`}
+              />
+            </label>
+            <label className="text-xs text-muted flex flex-col gap-1">
+              增量(小时)
+              <input
+                name="hours"
+                type="number"
+                min={1}
+                placeholder="可选"
+                className={`${inputCls} w-24`}
+              />
+            </label>
+            <label className="text-xs text-muted flex items-center gap-1 pb-2">
+              <input name="full" type="checkbox" value="1" />
+              全量
+            </label>
+            <button type="submit" className={primaryBtn}>
+              {latest?.status === "paused" ? "重新采集" : "开始采集"}
+            </button>
+          </form>
+        </div>
       )}
 
       {/* 实时采集日志(最近一次运行) */}

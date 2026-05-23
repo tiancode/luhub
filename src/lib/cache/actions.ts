@@ -14,7 +14,6 @@ export interface CacheRequest {
   videoId: number;
   lineName: string;
   epName: string;
-  url: string;
 }
 
 export async function requestEpisodeCache(req: CacheRequest): Promise<void> {
@@ -23,14 +22,19 @@ export async function requestEpisodeCache(req: CacheRequest): Promise<void> {
   const videoId = Number(req.videoId);
   const lineName = (req.lineName ?? "").trim();
   const epName = (req.epName ?? "").trim();
-  const url = (req.url ?? "").trim();
   if (!Number.isInteger(videoId) || videoId <= 0) return;
   if (!lineName || !epName) return;
-  if (!/^https?:\/\//i.test(url)) return; // 只缓存远程地址；本地 /videos/... 不回缓
 
-  // 确认影片存在，避免外部伪造 videoId 触发 FK 异常。
-  const video = await prisma.video.findUnique({ where: { id: videoId }, select: { id: true } });
-  if (!video) return;
+  // 不信客户端给的地址：按 (videoId, 线路名, 集名) 在库里查真实剧集地址，
+  // 杜绝伪造 url 触发 SSRF / 任意下载；顺带拿到正确的 sortOrder。
+  const episode = await prisma.episode.findFirst({
+    where: { name: epName, playSource: { videoId, fromName: lineName } },
+    select: { url: true, sortOrder: true },
+  });
+  if (!episode || !/^https?:\/\//i.test(episode.url)) return;
+  const url = episode.url;
+  const sortOrder = episode.sortOrder;
+  const format = isHls(url) ? "hls" : "mp4";
 
   const key = { videoId_lineName_epName: { videoId, lineName, epName } };
   const existing = await prisma.cachedEpisode.findUnique({ where: key });
@@ -53,16 +57,16 @@ export async function requestEpisodeCache(req: CacheRequest): Promise<void> {
     }
   }
 
-  const format = isHls(url) ? "hls" : "mp4";
   // 地址变了（源站换了链接）→ 重置失败计数，给新地址一轮完整重试。
   const urlChanged = !existing || existing.sourceUrl !== url;
   const row = await prisma.cachedEpisode.upsert({
     where: key,
-    create: { videoId, lineName, epName, sourceUrl: url, status: "pending", format },
+    create: { videoId, lineName, epName, sourceUrl: url, status: "pending", format, sortOrder },
     update: {
       sourceUrl: url,
       status: "pending",
       format,
+      sortOrder,
       error: null,
       ...(urlChanged ? { attempts: 0 } : {}),
     },

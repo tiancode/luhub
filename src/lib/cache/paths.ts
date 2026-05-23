@@ -26,6 +26,7 @@ export function sanitizeSegment(s: string, fallback = "未命名"): string {
 }
 
 export interface EpisodePathInput {
+  videoId: number; // 用于消歧：不同影片可能同名同年，避免文件互相覆盖
   groupLabel: string; // 分类组中文名，如 "电视剧"
   name: string; // 片名
   year?: number | null;
@@ -40,13 +41,15 @@ export interface EpisodePath {
   localUrl: string; // /videos/<分段 encodeURIComponent>（中文路径需 encode，Next 静态托管会解码匹配）
 }
 
-// 产物始终是 .mp4：分类组 / 片名 (年份) / 线路 / 集数.mp4
+// 产物始终是 .mp4：分类组 / 片名 (年份) [#videoId] / 线路 / 集数.mp4
+// 片名后缀 [#videoId] 保证唯一（同名同年的不同影片不会覆盖），videoId 为数字、文件系统安全。
 export function buildEpisodePath(input: EpisodePathInput): EpisodePath {
   const group = sanitizeSegment(input.groupLabel, "未分类");
-  const title = sanitizeSegment(
+  const titleBase = sanitizeSegment(
     input.year ? `${input.name} (${input.year})` : input.name,
     "未命名",
   );
+  const title = `${titleBase} [#${input.videoId}]`;
   const line = sanitizeSegment(input.lineName, "线路");
   const file = `${sanitizeSegment(input.epName, "未命名")}.mp4`;
 

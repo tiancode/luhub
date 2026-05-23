@@ -8,7 +8,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { requireAdmin, setSession, clearSession } from "./session";
 import { verifyPassword } from "./auth";
 import { runCollect, type CollectOptions, type SourceSnapshot } from "./collect";
-import { requestPause } from "./runControl";
+import { requestPause, isRunActive } from "./runControl";
 
 // ---------- 鉴权 ----------
 
@@ -185,6 +185,45 @@ export async function pauseCollectAction(formData: FormData): Promise<void> {
       data: { status: "paused", finishedAt: new Date() },
     });
   }
+  revalidatePath("/admin/sources");
+  revalidatePath("/admin");
+  redirect("/admin/sources");
+}
+
+export async function resumeCollectAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const runId = Number(formData.get("runId"));
+  if (!runId) redirect("/admin/sources");
+
+  // 上一次运行可能刚点暂停、还在进程内收尾（写"已暂停"+注销）。此时复用同一 runId 续采会
+  // 与旧任务抢同一控制器，导致续采没生效/暂停按钮失灵。仍活动则提示稍候。
+  if (isRunActive(runId)) err("/admin/sources", "上次采集还在收尾，请稍候几秒再点继续");
+
+  const run = await prisma.collectRun.findUnique({ where: { id: runId } });
+  if (!run || run.status !== "paused") redirect("/admin/sources");
+  const source = await prisma.source.findUnique({ where: { id: run.sourceId } });
+  if (!source) redirect("/admin/sources");
+
+  const opts: CollectOptions = {
+    full: run.full,
+    pages: run.pages ?? undefined,
+    hours: run.hours ?? undefined,
+  };
+  const snap = snapshot(source);
+  // maccms 从上次完整入库页 +1 续采；python(html) 源走其自身的去重续采（startPage 不适用）。
+  const startPage = run.lastPage + 1;
+
+  // 原子认领：只有一次能把 paused→running，挡住并发/双击让同一 runId 起多个续采。
+  const claimed = await prisma.collectRun.updateMany({
+    where: { id: runId, status: "paused" },
+    data: { status: "running", finishedAt: null },
+  });
+  if (claimed.count === 0) err("/admin/sources", "该任务已在继续中");
+
+  after(async () => {
+    await runCollect(runId, snap, opts, startPage);
+  });
+
   revalidatePath("/admin/sources");
   revalidatePath("/admin");
   redirect("/admin/sources");

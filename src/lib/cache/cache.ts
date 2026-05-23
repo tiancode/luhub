@@ -47,6 +47,7 @@ async function runCacheJob(id: number): Promise<void> {
     ? GROUP_LABELS[row.video.category.group] ?? row.video.category.name
     : "未分类";
   const { absDir, absFile, relPath, localUrl } = buildEpisodePath({
+    videoId: row.videoId,
     groupLabel,
     name: row.video.name,
     year: row.video.year,

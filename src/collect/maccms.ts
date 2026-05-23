@@ -160,18 +160,20 @@ async function fetchMaccms(
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export interface SyncOptions {
-  pages?: number; // 采集页数（从第 1 页起）
+  pages?: number; // 采集到第几页为止（绝对页码）
   hours?: number; // 仅采集最近 h 小时内更新（增量）
   delayMs?: number; // 每页间隔，限速
   onProgress?: (msg: string) => void;
   signal?: AbortSignal; // 暂停信号：置位后在页间停止（已入库的保留）
+  startPage?: number; // 从第几页开始（暂停后续采），默认 1
+  onPage?: (page: number) => void; // 每页完整入库后回调（用于持久化进度）
 }
 
 export async function syncSource(
   config: SourceConfig,
   opts: SyncOptions = {},
 ): Promise<IngestStats> {
-  const { pages = 5, hours, delayMs = 500, onProgress, signal } = opts;
+  const { pages = 5, hours, delayMs = 500, onProgress, signal, startPage = 1, onPage } = opts;
 
   const source = await prisma.source.upsert({
     where: { name: config.name },
@@ -182,7 +184,7 @@ export async function syncSource(
   const total: IngestStats = { categories: 0, videos: 0 };
   let pageCount = pages;
 
-  for (let pg = 1; pg <= pageCount; pg++) {
+  for (let pg = startPage; pg <= pageCount; pg++) {
     if (signal?.aborted) break; // 暂停:页间停止,已入库的保留
     const params: Record<string, string | number> = { ac: "detail", pg };
     if (hours) params.h = hours;
@@ -201,6 +203,7 @@ export async function syncSource(
     const stats = await ingestResponse(source.id, resp);
     total.categories += stats.categories;
     total.videos += stats.videos;
+    onPage?.(pg); // 该页已完整入库,记录进度供续采
     onProgress?.(
       `  page ${pg}/${pageCount}: +${stats.videos} videos (${stats.categories} cats)`,
     );

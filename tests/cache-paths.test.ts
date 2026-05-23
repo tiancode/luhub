@@ -15,24 +15,20 @@ test("sanitizeSegment 折叠空白、去首尾点、空回退", () => {
   assert.equal(sanitizeSegment("///", "线路"), "线路");
 });
 
-test("buildEpisodePath 生成人类可读 relPath 与编码后的 localUrl", () => {
+test("buildEpisodePath 生成人类可读 relPath 与编码后的 localUrl（含 videoId 消歧）", () => {
   const p = buildEpisodePath({
+    videoId: 7,
     groupLabel: "电视剧",
     name: "长安谜案",
     year: 2025,
     lineName: "线路A",
     epName: "第01集",
   });
-  assert.equal(p.relPath, "电视剧/长安谜案 (2025)/线路A/第01集.mp4");
+  assert.equal(p.relPath, "电视剧/长安谜案 (2025) [#7]/线路A/第01集.mp4");
   assert.equal(
     p.localUrl,
     "/videos/" +
-      [
-        "电视剧",
-        "长安谜案 (2025)",
-        "线路A",
-        "第01集.mp4",
-      ]
+      ["电视剧", "长安谜案 (2025) [#7]", "线路A", "第01集.mp4"]
         .map(encodeURIComponent)
         .join("/"),
   );
@@ -41,8 +37,8 @@ test("buildEpisodePath 生成人类可读 relPath 与编码后的 localUrl", () 
 });
 
 test("buildEpisodePath 无年份/无分类时回退", () => {
-  const p = buildEpisodePath({ groupLabel: "", name: "正片", lineName: "", epName: "" });
-  assert.equal(p.relPath, "未分类/正片/线路/未命名.mp4");
+  const p = buildEpisodePath({ videoId: 3, groupLabel: "", name: "正片", lineName: "", epName: "" });
+  assert.equal(p.relPath, "未分类/正片 [#3]/线路/未命名.mp4");
 });
 
 test("isHls 识别 m3u8", () => {

@@ -38,17 +38,25 @@ export async function runCollect(
   runId: number,
   source: SourceSnapshot,
   opts: CollectOptions,
+  startPage = 1,
 ): Promise<void> {
   // 「采集全部」队列里若某条在轮到前已被暂停(状态被改),直接跳过。
   const cur = await prisma.collectRun.findUnique({
     where: { id: runId },
-    select: { status: true },
+    select: { status: true, videos: true, categories: true },
   });
   if (cur && cur.status !== "running") return;
+  // 续采时已有计数,本次统计累加其上(新建运行此处为 0,不受影响)。
+  const baseVideos = cur?.videos ?? 0;
+  const baseCategories = cur?.categories ?? 0;
 
   const signal = beginRun(runId);
   const pages = opts.full ? 99999 : opts.pages ?? 5;
   const hours = opts.full ? undefined : opts.hours;
+  // 每页完整入库后落库进度,供暂停后从 lastPage+1 续采(maccms);失败忽略。
+  const onPage = (pg: number) => {
+    prisma.collectRun.update({ where: { id: runId }, data: { lastPage: pg } }).catch(() => {});
+  };
 
   const log: string[] = [];
   const tail = () => log.slice(-LOG_TAIL).join("\n");
@@ -93,6 +101,8 @@ export async function runCollect(
           delayMs: 500,
           onProgress,
           signal,
+          startPage,
+          onPage,
         });
 
     // 暂停:syncSource/syncViaPython 在 abort 时优雅返回已采集的部分统计。
@@ -102,8 +112,8 @@ export async function runCollect(
       where: { id: runId },
       data: {
         status: paused ? "paused" : "success",
-        videos: stats.videos,
-        categories: stats.categories,
+        videos: baseVideos + stats.videos,
+        categories: baseCategories + stats.categories,
         finishedAt: new Date(),
         message: tail() || null,
       },
