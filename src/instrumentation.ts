@@ -28,10 +28,10 @@ export async function register(): Promise<void> {
     for (const r of pending) enqueueCacheJob(r.id);
     if (pending.length) console.log(`[cache] 启动恢复 ${pending.length} 个未完成缓存任务`);
 
-    // 空闲预缓存（默认开启）：每个任务排空后自动挑下一集，充分利用空闲时间。
-    const { tickIdleCache, idleCacheEnabled } = await import("@/lib/cache/idle");
+    // 空闲预缓存（默认开启）：每个任务排空后（节流一拍）自动挑下一集，充分利用空闲时间。
+    const { tickIdleCache, scheduleIdleTick, idleCacheEnabled } = await import("@/lib/cache/idle");
     if (idleCacheEnabled()) {
-      setDrainHook(() => void tickIdleCache());
+      setDrainHook(() => scheduleIdleTick());
       // 启动恢复未入队任何任务时队列已空闲，立即点燃循环；否则 tick 内部守卫会自行让位。
       void tickIdleCache();
     }
