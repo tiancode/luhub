@@ -131,6 +131,20 @@ test("某线路已耗尽重试 → 只挑该集尚健康的线路", async () => 
   assert.equal(c.lineName, "线路2");
 });
 
+test("同集换线优先：某线路已失败(未到上限) → 先挑尚未试过的线路", async () => {
+  const v = await makeVideo("1", "剧A", [
+    { name: "线路1", eps: [{ name: "第01集", url: "http://e/a1.m3u8" }] },
+    { name: "线路2", eps: [{ name: "第01集", url: "http://e/b1.m3u8" }] },
+  ]);
+  // 线路1 失败 1 次（< 上限，仍可重试），线路2 从未试过 → 应先选线路2。
+  await prisma.cachedEpisode.create({
+    data: { videoId: v.id, lineName: "线路1", epName: "第01集", sourceUrl: "http://e/a1.m3u8", status: "failed", attempts: 1 },
+  });
+  const c = await idle.selectNextIdleEpisode();
+  assert.ok(c);
+  assert.equal(c.lineName, "线路2");
+});
+
 test("全库都已覆盖 → 返回 null", async () => {
   const v = await makeVideo("1", "剧A", [
     { name: "线路1", eps: [{ name: "第01集", url: "http://e/a1.m3u8" }] },

@@ -44,7 +44,9 @@ function toCandidate(r: RawRow | undefined): IdleCandidate | null {
   };
 }
 
-// 一条「该集（跨线路）尚无在用缓存、且该线路未彻底失败」的随机剧集；可加视频过滤。
+// 一条「该集（跨线路）尚无在用缓存、且该线路未彻底失败」的剧集；可加视频过滤。
+// 排序优先「失败次数最少」的线路：同一集里没试过的线路(=0)永远排在试过失败的前面，
+// 于是每集先把各线路各试一遍、任一条能下即胜出，坏流不会插队反复重试。
 function selectSql(videoFilter: Prisma.Sql): Prisma.Sql {
   return Prisma.sql`
     SELECT v.id AS videoId, e.name AS epName, ps.fromName AS lineName,
@@ -52,6 +54,10 @@ function selectSql(videoFilter: Prisma.Sql): Prisma.Sql {
     FROM Episode e
     JOIN PlaySource ps ON ps.id = e.playSourceId
     JOIN Video v       ON v.id = ps.videoId
+    -- 该线路在当前地址上的失败计数（无记录视为 0）：据此优先未试过的线路。
+    LEFT JOIN CachedEpisode c3
+      ON c3.videoId = v.id AND c3.lineName = ps.fromName
+         AND c3.epName = e.name AND c3.sourceUrl = e.url
     WHERE (e.url LIKE 'http://%' OR e.url LIKE 'https://%')
       ${videoFilter}
       AND NOT EXISTS (
@@ -62,7 +68,7 @@ function selectSql(videoFilter: Prisma.Sql): Prisma.Sql {
         SELECT 1 FROM CachedEpisode c2
         WHERE c2.videoId = v.id AND c2.lineName = ps.fromName AND c2.epName = e.name
           AND c2.status = 'failed' AND c2.attempts >= ${MAX_ATTEMPTS} AND c2.sourceUrl = e.url)
-    ORDER BY RANDOM()
+    ORDER BY COALESCE(c3.attempts, 0) ASC, RANDOM()
     LIMIT 1`;
 }
 
