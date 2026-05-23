@@ -17,6 +17,7 @@ model Source {
   apiUrl     String
   kind       String   @default("maccms_json") // maccms_json | maccms_xml | html
   adapter    String? // 仅 html 源:Python 适配器名(crawler/registry.py),如 "yhdm";空=用 maccms 接口
+  referer    String? // 缓存下载时给源站的 Referer(防盗链);空则回退用 apiUrl 的站点域名
   enabled    Boolean  @default(true)
   lastSyncAt DateTime?
   createdAt  DateTime @default(now())

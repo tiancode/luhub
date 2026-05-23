@@ -56,10 +56,22 @@ function pump(): void {
   }
 }
 
+// 缓存下载用的 Referer：优先用源站显式配置的 referer，否则回退用 apiUrl 的站点域名（多数防盗链按此校验）。
+function refererFor(source: { referer: string | null; apiUrl: string } | null): string | undefined {
+  if (!source) return undefined;
+  if (source.referer?.trim()) return source.referer.trim();
+  try {
+    const u = new URL(source.apiUrl);
+    return `${u.protocol}//${u.host}/`;
+  } catch {
+    return undefined;
+  }
+}
+
 async function runCacheJob(id: number): Promise<void> {
   const row = await prisma.cachedEpisode.findUnique({
     where: { id },
-    include: { video: { include: { category: true } } },
+    include: { video: { include: { category: true, source: true } } },
   });
   if (!row || row.status === "ready") return;
 
@@ -82,10 +94,11 @@ async function runCacheJob(id: number): Promise<void> {
 
   try {
     await mkdir(absDir, { recursive: true });
+    const referer = refererFor(row.video.source);
     const hls = isHls(row.sourceUrl);
     const bytes = hls
-      ? await remuxHls(row.sourceUrl, absFile)
-      : await downloadMp4(row.sourceUrl, absFile);
+      ? await remuxHls(row.sourceUrl, absFile, referer)
+      : await downloadMp4(row.sourceUrl, absFile, referer);
     await prisma.cachedEpisode.update({
       where: { id },
       data: {

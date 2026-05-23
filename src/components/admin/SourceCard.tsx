@@ -160,6 +160,15 @@ export function SourceCard({ source }: { source: SourceWithRuns }) {
                 className={`${inputCls} w-full mt-1`}
               />
             </label>
+            <label className="text-xs text-muted block">
+              Referer（防盗链；留空=用接口地址域名）
+              <input
+                name="referer"
+                defaultValue={source.referer ?? ""}
+                placeholder="留空即可；或 https://站点/"
+                className={`${inputCls} w-full mt-1`}
+              />
+            </label>
             <label className="text-xs text-muted flex items-center gap-2">
               <input name="enabled" type="checkbox" defaultChecked={source.enabled} />
               启用

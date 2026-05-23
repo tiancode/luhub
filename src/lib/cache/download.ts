@@ -8,7 +8,10 @@ import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as WebReadableStream } from "node:stream/web";
 
-const UA = "Mozilla/5.0 (luhub video cacher)";
+// 真实浏览器 UA：很多源站防盗链会拒明显的 bot UA / 缺 Referer 的请求。可用 env 覆盖。
+const UA =
+  process.env.VIDEO_CACHE_USER_AGENT ||
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const TIMEOUT_MS = Number(process.env.VIDEO_CACHE_TIMEOUT_MS) || 30 * 60_000;
 // 无数据/无进度判定为坏流的阈值（也覆盖「连不上」：连接迟迟不返回数据同样会触发）。
 const STALL_MS = Number(process.env.VIDEO_CACHE_STALL_MS) || 60_000;
@@ -18,7 +21,8 @@ const FFMPEG_STALL_MS = STALL_MS * 3;
 const FFMPEG_BIN = process.env.FFMPEG_BIN || "ffmpeg";
 
 // 流式下载 mp4 直链到 absFile，返回字节数。卡住（STALL_MS 无数据）或超总时长即中止并抛错。
-export async function downloadMp4(url: string, absFile: string): Promise<number> {
+// referer：源站防盗链所需的 Referer（按源配置 / 由站点域名推导），缺省不带。
+export async function downloadMp4(url: string, absFile: string, referer?: string): Promise<number> {
   const tmp = `${absFile}.tmp`;
   const ctrl = new AbortController();
   let reason: string | null = null;
@@ -32,7 +36,9 @@ export async function downloadMp4(url: string, absFile: string): Promise<number>
     if (Date.now() - lastTick > STALL_MS) abort(`数据停滞超过 ${STALL_MS}ms`);
   }, Math.min(STALL_MS, 5_000));
   try {
-    const res = await fetch(url, { headers: { "User-Agent": UA }, signal: ctrl.signal });
+    const headers: Record<string, string> = { "User-Agent": UA };
+    if (referer) headers["Referer"] = referer;
+    const res = await fetch(url, { headers, signal: ctrl.signal });
     if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
     // PassThrough 监控进度（不抢数据：透传同时刷新 lastTick），保留背压。
     const monitor = new Transform({
@@ -60,11 +66,14 @@ export async function downloadMp4(url: string, absFile: string): Promise<number>
 }
 
 // 用 ffmpeg -c copy 把 m3u8 无损合并成单个 mp4，返回字节数。
-export async function remuxHls(url: string, absFile: string): Promise<number> {
+// referer：同 downloadMp4，经 -headers 传给 ffmpeg 的 http 协议（分片请求也会带上）。
+export async function remuxHls(url: string, absFile: string, referer?: string): Promise<number> {
   const tmp = `${absFile}.tmp.mp4`;
   const args = [
     "-y",
     "-user_agent", UA,
+    // -headers 必须在 -i 之前，作用于后续输入；值以 \r\n 结尾。
+    ...(referer ? ["-headers", `Referer: ${referer}\r\n`] : []),
     "-rw_timeout", String(STALL_MS * 1000), // ffmpeg 自身 I/O 超时（微秒），坏流早退
     // 限制协议白名单（不含 file），防止恶意 m3u8 用 file:// 读取本地文件并混进输出。
     "-protocol_whitelist", "http,https,tcp,tls,crypto,data",

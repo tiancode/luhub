@@ -40,11 +40,12 @@ export async function createSourceAction(formData: FormData): Promise<void> {
   // adapter 仅对 html 源有意义(Python 适配器名,如 yhdm);其它类型置空
   const adapter =
     kind === "html" ? String(formData.get("adapter") ?? "").trim() || null : null;
+  const referer = String(formData.get("referer") ?? "").trim() || null;
   const enabled = formData.get("enabled") != null;
   if (!name || !apiUrl) err("/admin/sources", "名称和接口地址必填");
 
   try {
-    await prisma.source.create({ data: { name, apiUrl, kind, adapter, enabled } });
+    await prisma.source.create({ data: { name, apiUrl, kind, adapter, referer, enabled } });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       err("/admin/sources", `资源站名称「${name}」已存在`);
@@ -63,11 +64,12 @@ export async function updateSourceAction(formData: FormData): Promise<void> {
   const kind = String(formData.get("kind") ?? "maccms_json");
   const adapter =
     kind === "html" ? String(formData.get("adapter") ?? "").trim() || null : null;
+  const referer = String(formData.get("referer") ?? "").trim() || null;
   const enabled = formData.get("enabled") != null;
   if (!id || !apiUrl) err("/admin/sources", "参数错误");
 
   // name 创建后不可改：syncSource 按 name upsert，改名会孤立既有采集数据。
-  await prisma.source.update({ where: { id }, data: { apiUrl, kind, adapter, enabled } });
+  await prisma.source.update({ where: { id }, data: { apiUrl, kind, adapter, referer, enabled } });
   revalidatePath("/admin/sources");
   revalidatePath("/admin");
   redirect("/admin/sources");

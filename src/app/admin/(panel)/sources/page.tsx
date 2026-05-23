@@ -78,6 +78,14 @@ export default async function SourcesPage({
               className={`${inputCls} w-full mt-1`}
             />
           </label>
+          <label className="text-xs text-muted block sm:col-span-2">
+            Referer（缓存下载防盗链用；留空=自动用接口地址的站点域名）
+            <input
+              name="referer"
+              placeholder="留空即可；如需自定义：https://站点/"
+              className={`${inputCls} w-full mt-1`}
+            />
+          </label>
           <label className="text-xs text-muted flex items-center gap-2">
             <input name="enabled" type="checkbox" defaultChecked />
             创建后启用
