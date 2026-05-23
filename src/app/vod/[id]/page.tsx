@@ -3,8 +3,30 @@ import { notFound } from "next/navigation";
 import { getVideoDetail } from "@/lib/videos";
 import { GROUP_LABELS } from "@/lib/constants";
 import { Player, type PlayerLine } from "@/components/Player";
+import { FavoriteButton } from "@/components/FavoriteButton";
+import { getVisitorId } from "@/lib/visitor";
+import { getResume, isFavorited, type ResumeInfo } from "@/lib/library/queries";
 
 export const dynamic = "force-dynamic";
+
+// 把历史续播点映射成 Player 的初始线路/集索引：优先(线路名+集名)精确命中，
+// 其次任意线路里同名集（线路被重采改名/删除时兜底），最后退回首条线路按集序号(不 seek)。
+function locateResume(lines: PlayerLine[], resume: ResumeInfo | null) {
+  const fallback = { initialLineIdx: 0, initialEpIdx: 0, resumePosition: 0 };
+  if (!resume || lines.length === 0) return fallback;
+
+  const li = lines.findIndex((l) => l.fromName === resume.lineName);
+  if (li >= 0) {
+    const ei = lines[li].episodes.findIndex((e) => e.name === resume.epName);
+    if (ei >= 0) return { initialLineIdx: li, initialEpIdx: ei, resumePosition: resume.position };
+  }
+  for (let i = 0; i < lines.length; i++) {
+    const ei = lines[i].episodes.findIndex((e) => e.name === resume.epName);
+    if (ei >= 0) return { initialLineIdx: i, initialEpIdx: ei, resumePosition: resume.position };
+  }
+  const epCount = lines[0]?.episodes.length ?? 1;
+  return { initialLineIdx: 0, initialEpIdx: Math.min(Math.max(resume.epIndex, 0), epCount - 1), resumePosition: 0 };
+}
 
 type Params = Promise<{ id: string }>;
 
@@ -33,6 +55,13 @@ export default async function VodDetailPage({ params }: { params: Params }) {
       ? { id: -1, fromName: "缓存线路", cached: true, episodes: cachedEps }
       : null;
   const lines: PlayerLine[] = [...video.playSources, ...(cacheLine ? [cacheLine] : [])];
+
+  // 匿名访客：收藏状态 + 续播点（无 cookie 则视为新访客）。
+  const visitorId = await getVisitorId();
+  const [favorited, resume] = visitorId
+    ? await Promise.all([isFavorited(visitorId, video.id), getResume(visitorId, video.id)])
+    : [false, null];
+  const { initialLineIdx, initialEpIdx, resumePosition } = locateResume(lines, resume);
 
   const meta: [string, string | null | undefined][] = [
     ["分类", video.category ? GROUP_LABELS[video.category.group] ?? video.category.name : null],
@@ -63,7 +92,12 @@ export default async function VodDetailPage({ params }: { params: Params }) {
           </div>
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold mb-3">{video.name}</h1>
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <h1 className="text-2xl font-bold">{video.name}</h1>
+            <div className="shrink-0">
+              <FavoriteButton videoId={video.id} initial={favorited} />
+            </div>
+          </div>
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
             {meta
               .filter(([, v]) => v)
@@ -91,7 +125,13 @@ export default async function VodDetailPage({ params }: { params: Params }) {
         {lines.length === 0 ? (
           <p className="text-sm text-muted">暂无播放资源。</p>
         ) : (
-          <Player videoId={video.id} lines={lines} />
+          <Player
+            videoId={video.id}
+            lines={lines}
+            initialLineIdx={initialLineIdx}
+            initialEpIdx={initialEpIdx}
+            resumePosition={resumePosition}
+          />
         )}
       </section>
     </article>
