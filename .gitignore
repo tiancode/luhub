@@ -39,6 +39,9 @@ yarn-error.log*
 *.db-journal
 *.sqlite
 
+# 下载到本地的封面图(采集生成,非源码)
+/public/covers/
+
 # python crawler
 __pycache__/
 *.pyc

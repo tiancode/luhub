@@ -5,6 +5,10 @@ import { prisma } from "../src/lib/prisma";
 import { ingestResponse } from "../src/collect/maccms";
 import type { MaccmsResponse } from "../src/collect/types";
 
+// seed 是离线示例数据:跳过封面下载,直接保留 fixture 里的地址(不联网)。
+// localizeCover 在调用时读取该标志,而 main() 在其后执行,故此处设置生效。
+process.env.DISABLE_COVER_DOWNLOAD = "1";
+
 async function main() {
   const fixturePath = join(process.cwd(), "prisma/fixtures/maccms-sample.json");
   const resp = JSON.parse(readFileSync(fixturePath, "utf8")) as MaccmsResponse;

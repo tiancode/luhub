@@ -18,6 +18,8 @@
 4. 访问 `http://<NAS-IP>:3000`,后台在 `/admin`(用上面的密码登录)。
 
 数据库文件在 `/mnt/user/appdata/luhub/dev.db`(挂载卷,持久化)——**记得纳入 Unraid 备份**。
+采集下载的封面图在同卷的 `/mnt/user/appdata/luhub/covers/`(容器内 `public/covers` 由
+`entrypoint.sh` 软链到 `/data/covers`),随 DB 一起持久、一并备份;重建容器不丢、不必重抓。
 
 ### 首次灌示例数据(可选)
 想先看到界面有内容:在 compose 里把 `SEED: "1"` 取消注释,起一次容器(会写入离线

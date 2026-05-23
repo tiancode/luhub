@@ -45,6 +45,11 @@ ADMIN_PASSWORD="改成你的强密码"
 > `.env` 会被 Next / Prisma / 采集脚本自动加载;`DATABASE_URL`、`ADMIN_PASSWORD`
 > 都是服务端运行时读取,改完重启服务即可生效(无需重新 `build`)。
 
+> **封面图**:采集会把封面下载到 `<项目目录>/public/covers/`(站内 `/covers/...` 提供,
+> 已 gitignore)。`next start` 跨重启保留;重新 clone/换机会丢——重新采集即可恢复,或把
+> 该目录也纳入备份。想放到别的盘:设 `COVERS_DIR=/你的/绝对路径` 并确保它能在 `/covers`
+> 下被静态提供(如软链 `public/covers` 指向它)。
+
 ## 常驻运行(systemd)
 
 `/etc/systemd/system/luhub.service`:

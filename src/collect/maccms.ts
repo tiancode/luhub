@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { inferGroup } from "@/lib/constants";
 import type { SourceConfig } from "../../config/sources";
 import { parsePlay } from "./parse";
+import { localizeCover } from "./covers";
 import type { MaccmsResponse, MaccmsVod } from "./types";
 
 export { parsePlay };
@@ -48,9 +49,12 @@ async function upsertVideo(sourceId: number, vod: MaccmsVod): Promise<void> {
       ? await resolveCategory(sourceId, remoteTypeId, vod.type_name ?? "")
       : null;
 
+  // 封面下载到本地,存站内路径(失败为 null,不存外部链接)
+  const pic = await localizeCover(sourceId, sourceVodId, vod.vod_pic);
+
   const data = {
     name: vod.vod_name ?? "",
-    pic: vod.vod_pic || null,
+    pic,
     remarks: vod.vod_remarks || null,
     year: toInt(vod.vod_year),
     area: vod.vod_area || null,
