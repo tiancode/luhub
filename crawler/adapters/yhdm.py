@@ -244,7 +244,16 @@ class YhdmAdapter(Adapter):
 
         # 逐集请求 _get_plays 拿真实播放地址,按线路(src_site)分组
         lines_dict: dict[str, list] = defaultdict(list)
-        for title, href in self._episode_links(soup):
+        ep_links = self._episode_links(soup)
+        if ep_links:
+            # 这一步是单部番里最耗时的静默段(每集一次请求 + 限速),先报总数。
+            print(
+                f"  {vod_name}: 逐集抓取 {len(ep_links)} 集播放地址…", file=sys.stderr
+            )
+        for idx, (title, href) in enumerate(ep_links, 1):
+            # 每 20 集报一次进度,长番期间也持续有输出(否则上层会以为卡死)。
+            if idx % 20 == 0:
+                print(f"    …{vod_name}: {idx}/{len(ep_links)} 集", file=sys.stderr)
             m_ep = re.match(r"/vod-play/(\d+)/([^.]+)\.html", href)
             if not m_ep:
                 continue

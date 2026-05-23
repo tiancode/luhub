@@ -52,9 +52,15 @@ export async function runCollect(
 
   const log: string[] = [];
   const tail = () => log.slice(-LOG_TAIL).join("\n");
+  // 每行打时间戳:卡住时能看出“多久没动静”,区分“慢”和“真卡死”。
+  const stamp = (m: string) => {
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, "0");
+    return `[${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}] ${m}`;
+  };
   let lastFlush = 0;
   const onProgress = (m: string) => {
-    log.push(m);
+    log.push(stamp(m));
     if (log.length > LOG_TAIL * 2) log.splice(0, log.length - LOG_TAIL); // 限制内存
     const now = Date.now();
     if (now - lastFlush > 1000) {
@@ -91,7 +97,7 @@ export async function runCollect(
 
     // 暂停:syncSource/syncViaPython 在 abort 时优雅返回已采集的部分统计。
     const paused = signal.aborted;
-    if (paused) log.push("— 已暂停;已采集的已入库,再次「开始采集」可续采。");
+    if (paused) log.push(stamp("— 已暂停;已采集的已入库,再次「开始采集」可续采。"));
     await prisma.collectRun.update({
       where: { id: runId },
       data: {
@@ -108,7 +114,9 @@ export async function runCollect(
       data: {
         status: "failed",
         finishedAt: new Date(),
-        message: [...log.slice(-LOG_TAIL), `错误: ${(e as Error).message}`].join("\n"),
+        message: [...log.slice(-LOG_TAIL), stamp(`错误: ${(e as Error).message}`)].join(
+          "\n",
+        ),
       },
     });
   } finally {

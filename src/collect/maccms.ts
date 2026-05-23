@@ -128,16 +128,31 @@ function buildUrl(apiUrl: string, params: Record<string, string | number>): stri
   return url.toString();
 }
 
+// 单次请求超时(毫秒),可经环境变量调。没有它,死服务器会让采集无限挂起。
+const FETCH_TIMEOUT_MS = Number(process.env.COLLECT_FETCH_TIMEOUT_MS) || 30_000;
+
 async function fetchMaccms(
   apiUrl: string,
   params: Record<string, string | number>,
   signal?: AbortSignal,
 ): Promise<MaccmsResponse> {
   const target = buildUrl(apiUrl, params);
-  const res = await fetch(target, {
-    headers: { "User-Agent": "Mozilla/5.0 (luhub collector)" },
-    signal,
-  });
+  // 暂停信号 + 超时信号合并:任一触发即中断 fetch(含读 body,防止 body 永不结束)。
+  const timeout = AbortSignal.timeout(FETCH_TIMEOUT_MS);
+  const merged = signal ? AbortSignal.any([signal, timeout]) : timeout;
+  let res: Response;
+  try {
+    res = await fetch(target, {
+      headers: { "User-Agent": "Mozilla/5.0 (luhub collector)" },
+      signal: merged,
+    });
+  } catch (e) {
+    // 超时单独报错(区别于用户暂停:用户暂停时外层据 signal.aborted 静默处理)。
+    if (timeout.aborted && !signal?.aborted) {
+      throw new Error(`请求超时(${FETCH_TIMEOUT_MS}ms):${target}`);
+    }
+    throw e;
+  }
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${target}`);
   return (await res.json()) as MaccmsResponse;
 }
@@ -173,6 +188,7 @@ export async function syncSource(
     if (hours) params.h = hours;
     let resp: MaccmsResponse;
     try {
+      onProgress?.(`抓取第 ${pg}/${pageCount} 页…`);
       resp = await fetchMaccms(config.apiUrl, params, signal);
     } catch (e) {
       if (signal?.aborted) break; // 在途请求被 abort 打断:按暂停处理

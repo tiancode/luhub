@@ -6,6 +6,8 @@
 // - 断点续采:入库前先把该源已采集的 sourceVodId 写入临时文件,经 --seen-file 传给 Python;
 //   Python 跳过这些 id,不再请求其详情页。增量(hours)模式不跳过,以便刷新已有番的新集。
 // - 串行入库:逐行排队 await,避免并发写 SQLite(单写)。
+// - 可观测性:Python 的 stderr 是实时诊断(抓哪页/哪部、失败原因),逐行转发到 onProgress;
+//   并有心跳/卡死看门狗:静默过久打心跳,超 STALL 判定卡死、杀子进程并报错(不再无限挂起)。
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -75,10 +77,17 @@ export async function syncViaPython(
   const py = opts.python ?? process.env.PYTHON_BIN ?? "python3";
   const args = buildArgs(opts, seenFile);
   const total: IngestStats = { categories: 0, videos: 0 };
+  // 心跳/卡死看门狗阈值(可经环境变量调):安静超过 HEARTBEAT 打一条“仍在运行”,
+  // 安静超过 STALL 判定卡死、杀子进程并报错(避免无限挂起)。
+  const HEARTBEAT_MS = Number(process.env.COLLECT_HEARTBEAT_MS) || 20_000;
+  const STALL_MS = Number(process.env.COLLECT_STALL_MS) || 180_000;
 
   try {
     await new Promise<void>((resolve, reject) => {
       const child = spawn(py, args, { cwd: opts.cwd ?? process.cwd() });
+      onProgress?.(`启动采集器:${py} ${args.join(" ")}`);
+      let fatal: Error | null = null;
+
       // 暂停:收到 abort 即杀掉子进程;已逐行入库的保留,close 时按部分结算。
       const onAbort = () => {
         try {
@@ -91,23 +100,49 @@ export async function syncViaPython(
         if (opts.signal.aborted) child.kill();
         else opts.signal.addEventListener("abort", onAbort, { once: true });
       }
-      // stderr 仅用于失败时的错误信息,只保留尾部,避免长时间采集时无限增长。
-      const STDERR_CAP = 64 * 1024;
-      let err = "";
-      child.stderr.setEncoding("utf8");
-      child.stderr.on("data", (d) => {
-        err += d;
-        if (err.length > STDERR_CAP) err = err.slice(-STDERR_CAP);
+
+      // 看门狗:记录最近一次有任何输出的时刻;静默过久 -> 心跳提示,超 STALL -> 判卡死。
+      let lastOut = Date.now();
+      const bump = () => (lastOut = Date.now());
+      const watch = setInterval(() => {
+        if (opts.signal?.aborted || fatal) return;
+        const idle = Date.now() - lastOut;
+        const secs = Math.round(idle / 1000);
+        if (idle >= STALL_MS) {
+          fatal = new Error(`采集器已 ${secs}s 无任何输出,疑似卡死,已终止`);
+          onProgress?.(`✗ ${fatal.message}`);
+          try {
+            child.kill("SIGKILL");
+          } catch {
+            /* 已退出 */
+          }
+        } else if (idle >= HEARTBEAT_MS) {
+          onProgress?.(`· 仍在运行,已 ${secs}s 无新输出…`);
+        }
+      }, HEARTBEAT_MS);
+
+      // stderr 是采集器的实时诊断(抓哪页/哪部、失败原因等):逐行转发到实时日志,
+      // 同时保留尾部若干行用于失败时的错误信息(不再无限增长)。
+      const ERR_TAIL = 50;
+      const errTail: string[] = [];
+      const errRl = createInterface({ input: child.stderr, crlfDelay: Infinity });
+      errRl.on("line", (line) => {
+        const s = line.trimEnd();
+        if (!s) return;
+        bump();
+        errTail.push(s);
+        if (errTail.length > ERR_TAIL) errTail.shift();
+        onProgress?.(`· ${s}`);
       });
 
       // 逐行入库,串行排队避免并发写 SQLite。
       const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
       let chain: Promise<void> = Promise.resolve();
-      let fatal: Error | null = null;
 
       rl.on("line", (line) => {
         const s = line.trim();
         if (!s) return;
+        bump();
         chain = chain
           .then(async () => {
             if (fatal) return;
@@ -125,16 +160,22 @@ export async function syncViaPython(
             for (const v of resp.list ?? []) {
               onProgress?.(`  +入库 ${v.vod_name || v.vod_id}`);
             }
+            bump(); // 入库本身耗时,记一次活动避免被误判卡死
           })
           .catch((e) => {
             fatal = e as Error;
+            onProgress?.(`✗ 入库失败:${fatal.message}`);
             // 入库出错:无意义再让爬虫继续(可能还要数小时),立即终止子进程,尽快结算。
             child.kill();
           });
       });
 
-      child.on("error", reject);
+      child.on("error", (e) => {
+        clearInterval(watch);
+        reject(e);
+      });
       child.on("close", (code) => {
+        clearInterval(watch);
         opts.signal?.removeEventListener("abort", onAbort);
         // 等待入库队列排空后再结算。
         chain
@@ -142,7 +183,9 @@ export async function syncViaPython(
             if (opts.signal?.aborted) resolve(); // 暂停:已入库的保留,按部分统计正常返回
             else if (fatal) reject(fatal);
             else if (code !== 0)
-              reject(new Error(`python 采集器退出码 ${code}:${err.trim()}`));
+              reject(
+                new Error(`python 采集器退出码 ${code}:${errTail.join("\n").trim()}`),
+              );
             else resolve();
           })
           .catch(reject);
