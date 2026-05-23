@@ -36,6 +36,9 @@ export function SourceCard({ source }: { source: SourceWithRuns }) {
           <span className="text-xs text-muted">停用</span>
         )}
         <span className="text-xs text-muted">{source.kind}</span>
+        {source.adapter && (
+          <span className="text-xs text-primary">via {source.adapter}</span>
+        )}
         <span className="text-xs text-muted ml-auto">
           影片 {source._count.videos} · 上次 {fmtDateTime(source.lastSyncAt)}
         </span>
@@ -109,6 +112,15 @@ export function SourceCard({ source }: { source: SourceWithRuns }) {
                 <option value="maccms_xml">maccms_xml</option>
                 <option value="html">html</option>
               </select>
+            </label>
+            <label className="text-xs text-muted block">
+              Python 适配器（仅 html：如 yhdm）
+              <input
+                name="adapter"
+                defaultValue={source.adapter ?? ""}
+                placeholder="如：yhdm"
+                className={`${inputCls} w-full mt-1`}
+              />
             </label>
             <label className="text-xs text-muted flex items-center gap-2">
               <input name="enabled" type="checkbox" defaultChecked={source.enabled} />

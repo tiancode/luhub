@@ -61,12 +61,20 @@ export default async function SourcesPage({
               <option value="html">html</option>
             </select>
           </label>
+          <label className="text-xs text-muted block">
+            Python 适配器（仅 html：如 yhdm；留空=用 maccms 接口）
+            <input
+              name="adapter"
+              placeholder="如：yhdm"
+              className={`${inputCls} w-full mt-1`}
+            />
+          </label>
           <label className="text-xs text-muted block sm:col-span-2">
-            接口地址（maccms：/api.php/provide/vod/）
+            接口/站点地址（maccms：/api.php/provide/vod/；html 适配器：站点根，如 https://yhdm.one）
             <input
               name="apiUrl"
               required
-              placeholder="https://站点/api.php/provide/vod/"
+              placeholder="https://站点/api.php/provide/vod/ 或 https://yhdm.one"
               className={`${inputCls} w-full mt-1`}
             />
           </label>

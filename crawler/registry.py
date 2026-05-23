@@ -5,9 +5,11 @@ from .adapters.base import Adapter
 from .adapters.html_example import HtmlExampleAdapter
 from .adapters.maccms import MaccmsAdapter
 from .adapters.mocksite import MockSiteAdapter
+from .adapters.yhdm import YhdmAdapter
 
 ADAPTERS: dict[str, type[Adapter]] = {
     MaccmsAdapter.name: MaccmsAdapter,
     HtmlExampleAdapter.name: HtmlExampleAdapter,
     MockSiteAdapter.name: MockSiteAdapter,
+    YhdmAdapter.name: YhdmAdapter,
 }

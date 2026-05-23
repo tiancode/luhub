@@ -9,6 +9,7 @@ interface Args {
   name?: string;
   pages: number;
   hours?: number;
+  resume?: boolean; // --no-resume 关闭断点续采(重新全量抓取,已采集的也再抓一遍)
 }
 
 function parseArgs(argv: string[]): Args {
@@ -37,6 +38,9 @@ function parseArgs(argv: string[]): Args {
       case "hours":
         a.hours = Number(v);
         break;
+      case "no-resume":
+        a.resume = false;
+        break;
     }
   }
   return a;
@@ -44,16 +48,20 @@ function parseArgs(argv: string[]): Args {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  if (!args.adapter || (!args.api && !args.baseUrl)) {
+  // yhdm 适配器有内置默认 base-url,无需 --api/--base-url 即可运行。
+  const needsTarget = args.adapter !== "yhdm";
+  if (!args.adapter || (needsTarget && !args.api && !args.baseUrl)) {
     console.error(
       "用法: pnpm collect:py --adapter=maccms --api=<URL> [--name=X] [--pages=N] [--hours=H]\n" +
-        "     或: pnpm collect:py --adapter=html_example --base-url=<URL> --name=X [--pages=N]",
+        "     或: pnpm collect:py --adapter=yhdm --name=樱花动漫 [--pages=N] [--hours=H] [--no-resume]\n" +
+        "默认断点续采(跳过该源已采集的 vod_id);--no-resume 可强制重新全量抓取。",
     );
     process.exit(1);
   }
 
+  const yhdmDefault = args.adapter === "yhdm" ? "https://yhdm.one" : "";
   const name = args.name ?? args.api ?? args.baseUrl ?? args.adapter;
-  const apiUrl = args.api ?? args.baseUrl ?? "";
+  const apiUrl = args.api ?? args.baseUrl ?? yhdmDefault;
   const kind = args.adapter === "maccms" ? "maccms_json" : "html";
 
   const source = await prisma.source.upsert({
@@ -68,6 +76,7 @@ async function main() {
     baseUrl: args.baseUrl,
     pages: args.pages,
     hours: args.hours,
+    resume: args.resume,
   };
 
   console.log(`采集(py) [${name}] adapter=${args.adapter}`);

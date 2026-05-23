@@ -36,11 +36,14 @@ export async function createSourceAction(formData: FormData): Promise<void> {
   const name = String(formData.get("name") ?? "").trim();
   const apiUrl = String(formData.get("apiUrl") ?? "").trim();
   const kind = String(formData.get("kind") ?? "maccms_json");
+  // adapter 仅对 html 源有意义(Python 适配器名,如 yhdm);其它类型置空
+  const adapter =
+    kind === "html" ? String(formData.get("adapter") ?? "").trim() || null : null;
   const enabled = formData.get("enabled") != null;
   if (!name || !apiUrl) err("/admin/sources", "名称和接口地址必填");
 
   try {
-    await prisma.source.create({ data: { name, apiUrl, kind, enabled } });
+    await prisma.source.create({ data: { name, apiUrl, kind, adapter, enabled } });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       err("/admin/sources", `资源站名称「${name}」已存在`);
@@ -57,11 +60,13 @@ export async function updateSourceAction(formData: FormData): Promise<void> {
   const id = Number(formData.get("id"));
   const apiUrl = String(formData.get("apiUrl") ?? "").trim();
   const kind = String(formData.get("kind") ?? "maccms_json");
+  const adapter =
+    kind === "html" ? String(formData.get("adapter") ?? "").trim() || null : null;
   const enabled = formData.get("enabled") != null;
   if (!id || !apiUrl) err("/admin/sources", "参数错误");
 
   // name 创建后不可改：syncSource 按 name upsert，改名会孤立既有采集数据。
-  await prisma.source.update({ where: { id }, data: { apiUrl, kind, enabled } });
+  await prisma.source.update({ where: { id }, data: { apiUrl, kind, adapter, enabled } });
   revalidatePath("/admin/sources");
   revalidatePath("/admin");
   redirect("/admin/sources");
@@ -101,7 +106,14 @@ function parseOptions(formData: FormData): CollectOptions {
 }
 
 function snapshot(s: SourceSnapshot): SourceSnapshot {
-  return { name: s.name, apiUrl: s.apiUrl, kind: s.kind, enabled: s.enabled };
+  return {
+    id: s.id,
+    name: s.name,
+    apiUrl: s.apiUrl,
+    kind: s.kind,
+    adapter: s.adapter,
+    enabled: s.enabled,
+  };
 }
 
 async function createRun(sourceId: number, opts: CollectOptions) {
