@@ -173,6 +173,11 @@ export async function getVideoDetail(id: number) {
         orderBy: { sortOrder: "asc" },
         include: { episodes: { orderBy: { sortOrder: "asc" } } },
       },
+      // 已缓存到本地的剧集，用于在播放器里合成「缓存线路」。
+      cachedEpisodes: {
+        where: { status: "ready" },
+        orderBy: [{ sortOrder: "asc" }, { epName: "asc" }],
+      },
     },
   });
 }

@@ -92,9 +92,10 @@ model Video {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  source      Source       @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-  category    Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  playSources PlaySource[]
+  source         Source          @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  category       Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  playSources    PlaySource[]
+  cachedEpisodes CachedEpisode[]
 
   @@unique([sourceId, sourceVodId])
   @@index([categoryId])
@@ -127,4 +128,29 @@ model Episode {
   playSource PlaySource @relation(fields: [playSourceId], references: [id], onDelete: Cascade)
 
   @@index([playSourceId])
+}
+
+/// 本地缓存的剧集（前台播放时按需生成，独立于采集会重建的 PlaySource/Episode）。
+/// 以稳定键 (videoId, lineName, epName) 记录，故采集重建播放线路时不受影响。
+model CachedEpisode {
+  id        Int      @id @default(autoincrement())
+  videoId   Int
+  lineName  String // 原始线路名（vod_play_from 的某条），如 "线路A"
+  epName    String // 集数名，如 "第01集"
+  sourceUrl String // 缓存时的远程地址（mp4 或 m3u8）
+  status    String   @default("pending") // pending | downloading | ready | failed
+  format    String? // mp4 | hls（来源类型，产物始终是 mp4）
+  localUrl  String? // 对外播放地址，如 /videos/电视剧/...（分段 encodeURIComponent）
+  relPath   String? // 人类可读的相对路径（便于运维/排错）
+  bytes     BigInt? // 文件大小（视频可超 2GB，故用 BigInt）
+  error     String?
+  attempts  Int      @default(0) // 失败重试计数；超过上限后跳过该坏流不再下载
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([videoId, lineName, epName])
+  @@index([videoId, status])
 }

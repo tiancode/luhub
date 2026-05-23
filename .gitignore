@@ -42,6 +42,9 @@ yarn-error.log*
 # 下载到本地的封面图(采集生成,非源码)
 /public/covers/
 
+# 前台播放时缓存到本地的视频(运行生成,非源码)
+/public/videos/
+
 # python crawler
 __pycache__/
 *.pyc

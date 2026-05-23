@@ -1,7 +1,17 @@
 // 基于 cookie 的会话读写 —— 仅用于 Server Component / Server Action（依赖 next/headers）。
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ADMIN_COOKIE, expectedToken, verifyToken } from "./auth";
+
+// 仅当请求确实走 HTTPS 时才给 cookie 加 Secure。
+// 反代终止 TLS 时通过 x-forwarded-proto 透传真实协议；纯 HTTP（如 NAS 内网按 IP 访问）
+// 绝不能加 Secure，否则浏览器不回传 cookie，表现为「登录后几秒被踢回登录页」。
+// 直连 HTTPS（无反代、无该头）可用 ADMIN_COOKIE_SECURE=1 强制开启。
+async function isSecureRequest(): Promise<boolean> {
+  if (process.env.ADMIN_COOKIE_SECURE === "1") return true;
+  const proto = (await headers()).get("x-forwarded-proto") ?? "";
+  return proto.split(",")[0].trim() === "https";
+}
 
 export async function isAuthed(): Promise<boolean> {
   const store = await cookies();
@@ -19,7 +29,7 @@ export async function setSession(): Promise<void> {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
-    secure: process.env.NODE_ENV === "production",
+    secure: await isSecureRequest(),
     maxAge: 60 * 60 * 24 * 7,
   });
 }

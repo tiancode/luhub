@@ -12,6 +12,8 @@ WORKDIR /app
 FROM base AS deps
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
     && rm -rf /var/lib/apt/lists/*
+COPY prisma ./prisma
+RUN npx prisma generate
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
@@ -28,9 +30,10 @@ FROM base AS runner
 ENV NODE_ENV=production
 ENV DATABASE_URL="file:/data/dev.db"
 ENV PORT=3000
-# python3 跑 crawler/；tini 处理信号；安装 crawler 依赖（html/mocksite 适配器用，maccms 不需要）
+# python3 跑 crawler/；tini 处理信号；ffmpeg 把 m3u8 合并成 mp4（前台播放即缓存用）；
+# 安装 crawler 依赖（html/mocksite 适配器用，maccms 不需要）
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      python3 python3-pip ca-certificates tini \
+      python3 python3-pip ca-certificates tini ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app ./
 RUN pip3 install --break-system-packages --no-cache-dir -r crawler/requirements.txt

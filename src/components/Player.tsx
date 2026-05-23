@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type HlsType from "hls.js";
+import { requestEpisodeCache } from "@/lib/cache/actions";
 
 export interface PlayerEpisode {
   id: number;
@@ -12,12 +13,15 @@ export interface PlayerLine {
   id: number;
   fromName: string;
   episodes: PlayerEpisode[];
+  cached?: boolean; // 合成的「缓存线路」：本地文件，不再回缓
 }
 
 const isHls = (url: string) => /\.m3u8(\?|#|$)/i.test(url);
 const P2P_KEY = "luhub_p2p";
+// 看够这么多秒（或看完）才通知服务端缓存：只缓存真正在看的，避免快速点选时把路过的剧集排进队列。
+const CACHE_TRIGGER_SECONDS = 15;
 
-export function Player({ lines }: { lines: PlayerLine[] }) {
+export function Player({ videoId, lines }: { videoId: number; lines: PlayerLine[] }) {
   const [lineIdx, setLineIdx] = useState(0);
   const [epIdx, setEpIdx] = useState(0);
   const [error, setError] = useState(false);
@@ -118,6 +122,37 @@ export function Player({ lines }: { lines: PlayerLine[] }) {
       hls?.destroy();
     };
   }, [url, p2pEnabled]);
+
+  // 「看够再缓存」：监听播放进度，看到 CACHE_TRIGGER_SECONDS 秒（或看完）才通知服务端缓存。
+  // 快速点选路过的剧集进度还没到阈值就被切走（url 变 → 清理监听），因此不会被排队下载，
+  // 只缓存用户真正在看的那一集。失败静默；服务端自身幂等去重。
+  useEffect(() => {
+    if (!url || !line || !ep || line.cached) return;
+    if (!/^https?:\/\//i.test(url)) return;
+    const video = videoRef.current;
+    if (!video) return;
+    const lineName = line.fromName;
+    const epName = ep.name;
+
+    let fired = false;
+    function trigger() {
+      if (fired) return;
+      fired = true;
+      video!.removeEventListener("timeupdate", onTime);
+      video!.removeEventListener("ended", trigger);
+      void requestEpisodeCache({ videoId, lineName, epName, url }).catch(() => {});
+    }
+    function onTime() {
+      if (video!.currentTime >= CACHE_TRIGGER_SECONDS) trigger();
+    }
+    video.addEventListener("timeupdate", onTime);
+    video.addEventListener("ended", trigger); // 短于阈值的片子看完也缓存
+    return () => {
+      video.removeEventListener("timeupdate", onTime);
+      video.removeEventListener("ended", trigger);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url]);
 
   function selectLine(i: number) {
     setLineIdx(i);

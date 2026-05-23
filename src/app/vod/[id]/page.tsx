@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getVideoDetail } from "@/lib/videos";
 import { GROUP_LABELS } from "@/lib/constants";
-import { Player } from "@/components/Player";
+import { Player, type PlayerLine } from "@/components/Player";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +22,17 @@ export default async function VodDetailPage({ params }: { params: Params }) {
   const { id } = await params;
   const video = await getVideoDetail(Number(id));
   if (!video) notFound();
+
+  // 由已缓存剧集合成一条「缓存线路」（按集名去重，跨原线路同名只显示一条）。
+  const seen = new Set<string>();
+  const cachedEps = video.cachedEpisodes
+    .filter((c) => c.localUrl && !seen.has(c.epName) && (seen.add(c.epName), true))
+    .map((c) => ({ id: -c.id, name: c.epName, url: c.localUrl! }));
+  const cacheLine: PlayerLine | null =
+    cachedEps.length > 0
+      ? { id: -1, fromName: "缓存线路", cached: true, episodes: cachedEps }
+      : null;
+  const lines: PlayerLine[] = [...video.playSources, ...(cacheLine ? [cacheLine] : [])];
 
   const meta: [string, string | null | undefined][] = [
     ["分类", video.category ? GROUP_LABELS[video.category.group] ?? video.category.name : null],
@@ -77,10 +88,10 @@ export default async function VodDetailPage({ params }: { params: Params }) {
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">在线播放</h2>
-        {video.playSources.length === 0 ? (
+        {lines.length === 0 ? (
           <p className="text-sm text-muted">暂无播放资源。</p>
         ) : (
-          <Player lines={video.playSources} />
+          <Player videoId={video.id} lines={lines} />
         )}
       </section>
     </article>

@@ -21,6 +21,11 @@
 采集下载的封面图在同卷的 `/mnt/user/appdata/luhub/covers/`(容器内 `public/covers` 由
 `entrypoint.sh` 软链到 `/data/covers`),随 DB 一起持久、一并备份;重建容器不丢、不必重抓。
 
+前台播放某集时,后台会把该集**永久缓存成本地 mp4**(m3u8 经镜像内置的 `ffmpeg` 无损合并),
+落在同卷的 `/mnt/user/appdata/luhub/videos/`(容器内 `public/videos` 软链到 `/data/videos`),
+播放器里随之多出一条「缓存线路」直接播本地文件。**视频体积大**,注意磁盘容量与备份策略;
+如需关闭设环境变量 `DISABLE_VIDEO_CACHE=1`(其余可调项见 `.env.example`)。
+
 ### 首次灌示例数据(可选)
 想先看到界面有内容:在 compose 里把 `SEED: "1"` 取消注释,起一次容器(会写入离线
 示例数据),然后把该行删掉再重启。真实数据请在 `/admin/sources` 配置你有权使用的源后采集。
