@@ -141,6 +141,31 @@ test("全库都已覆盖 → 返回 null", async () => {
   assert.equal(await idle.selectNextIdleEpisode(), null);
 });
 
+test("多视频中仅一个尚有未缓存集 → 兜底仍能选中它（不早停）", async () => {
+  // 两个视频已全部 ready，第三个尚未缓存：随机抽视频可能屡次落空，兜底精确扫必须命中 v3。
+  const v1 = await makeVideo("1", "剧A", [{ name: "线路1", eps: [{ name: "第01集", url: "http://e/a1.m3u8" }] }]);
+  const v2 = await makeVideo("2", "剧B", [{ name: "线路1", eps: [{ name: "第01集", url: "http://e/c1.m3u8" }] }]);
+  const v3 = await makeVideo("3", "剧C", [{ name: "线路1", eps: [{ name: "第01集", url: "http://e/d1.m3u8" }] }]);
+  await prisma.cachedEpisode.createMany({
+    data: [
+      { videoId: v1.id, lineName: "线路1", epName: "第01集", sourceUrl: "http://e/a1.m3u8", status: "ready" },
+      { videoId: v2.id, lineName: "线路1", epName: "第01集", sourceUrl: "http://e/c1.m3u8", status: "ready" },
+    ],
+  });
+  const c = await idle.selectNextIdleEpisode();
+  assert.ok(c);
+  assert.equal(c.videoId, v3.id);
+  assert.equal(c.epName, "第01集");
+});
+
+test("非 http(s) 但以 http 开头的地址不被选（收紧 LIKE）", async () => {
+  const v = await makeVideo("1", "剧A", [
+    { name: "线路1", eps: [{ name: "第01集", url: "httpx://bad/a1.m3u8" }] },
+  ]);
+  void v;
+  assert.equal(await idle.selectNextIdleEpisode(), null);
+});
+
 test("prepareEpisodeCache 一集一份：另一线路已 ready 时跳过、否则建 pending", async () => {
   const v = await makeVideo("1", "剧A", [
     { name: "线路1", eps: [{ name: "第01集", url: "http://e/a1.m3u8" }] },
