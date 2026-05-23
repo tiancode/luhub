@@ -24,11 +24,15 @@ COPY . .
 # 构建期不接真实库；给个临时可写路径，避免任何模块在 build 时尝试打开 /data。
 ENV DATABASE_URL="file:/tmp/luhub-build.db"
 RUN pnpm build
+RUN pnpm rebuild better-sqlite3
 
 # ---------- runner ----------
 FROM base AS runner
 ENV NODE_ENV=production
 ENV DATABASE_URL="file:/data/dev.db"
+# 封面/缓存视频直接落在挂载卷上；由路由处理器(/covers /videos)从这里流式读取，不经 public/。
+ENV COVERS_DIR="/data/covers"
+ENV VIDEOS_DIR="/data/videos"
 ENV PORT=3000
 # python3 跑 crawler/；tini 处理信号；ffmpeg 把 m3u8 合并成 mp4（前台播放即缓存用）；
 # 安装 crawler 依赖（html/mocksite 适配器用，maccms 不需要）

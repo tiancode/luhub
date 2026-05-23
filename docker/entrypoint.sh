@@ -5,13 +5,10 @@ set -e
 echo "[luhub] prisma migrate deploy ..."
 pnpm prisma migrate deploy
 
-# 封面图持久化：把 public/covers 指向挂载卷 /data/covers，
-# 这样采集下载的封面随 DB 一起持久（记得纳入备份），重建容器不丢、不必重抓。
-mkdir -p /data/covers && ln -sfn /data/covers public/covers
-
-# 缓存视频持久化：把 public/videos 指向挂载卷 /data/videos，
-# 前台播放时缓存的 mp4 永久落在卷上（体积大，注意磁盘与备份策略）。
-mkdir -p /data/videos && ln -sfn /data/videos public/videos
+# 封面与缓存视频持久化：直接落在挂载卷上（COVERS_DIR=/data/covers、VIDEOS_DIR=/data/videos，
+# 见 Dockerfile），由路由处理器 /covers、/videos 流式返回，不再软链进 public/。
+# 随 DB 一起持久（记得纳入备份）；视频体积大，注意磁盘策略。
+mkdir -p /data/covers /data/videos
 
 # 可选：设 SEED=1 时灌入离线示例数据（首次预览用，之后去掉该变量）。
 if [ "${SEED:-0}" = "1" ]; then

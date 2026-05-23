@@ -45,15 +45,15 @@ ADMIN_PASSWORD="改成你的强密码"
 > `.env` 会被 Next / Prisma / 采集脚本自动加载;`DATABASE_URL`、`ADMIN_PASSWORD`
 > 都是服务端运行时读取,改完重启服务即可生效(无需重新 `build`)。
 
-> **封面图**:采集会把封面下载到 `<项目目录>/public/covers/`(站内 `/covers/...` 提供,
-> 已 gitignore)。`next start` 跨重启保留;重新 clone/换机会丢——重新采集即可恢复,或把
-> 该目录也纳入备份。想放到别的盘:设 `COVERS_DIR=/你的/绝对路径` 并确保它能在 `/covers`
-> 下被静态提供(如软链 `public/covers` 指向它)。
+> **封面图**:采集会把封面下载到 `<项目目录>/public/covers/`(站内 `/covers/...` 由路由处理器
+> 直接流式返回,**不经 public/ 静态托管**——否则运行时新下载的封面会被 `next start` 的快照漏掉而
+> 404;已 gitignore)。`next start` 跨重启保留;重新 clone/换机会丢——重新采集即可恢复,或把该
+> 目录纳入备份。想放到别的盘:直接设 `COVERS_DIR=/你的/绝对路径` 即可(无需软链)。
 
 > **缓存视频**:前台播放某集时,后台会把该集**永久缓存成本地 mp4**(m3u8 经 `ffmpeg` 无损
 > 合并,需系统装有 ffmpeg),落在 `<项目目录>/public/videos/分类/片名 (年份)/线路/集数.mp4`
-> (站内 `/videos/...` 提供,已 gitignore),播放器随之多出一条「缓存线路」。**视频体积大**,
-> 注意磁盘与备份。想放到别的盘:设 `VIDEOS_DIR=/你的/绝对路径` 并软链 `public/videos` 指向它。
+> (站内 `/videos/...` 同样由路由处理器流式返回,支持 Range;已 gitignore),播放器随之多出一条
+> 「缓存线路」。**视频体积大**,注意磁盘与备份。想放到别的盘:直接设 `VIDEOS_DIR=/你的/绝对路径`。
 > 关闭:`DISABLE_VIDEO_CACHE=1`(其余可调项见 `.env.example`)。
 
 ## 常驻运行(systemd)

@@ -22,6 +22,11 @@ __pycache__/
 *.pyc
 .venv
 
+# 本地下载/缓存的静态资源（容器内由 entrypoint 软链到数据卷，绝不打进镜像，
+# 否则会变成真实目录、导致软链落到嵌套子目录，写不到挂载卷）
+public/covers
+public/videos
+
 # 杂项
 npm-debug.log*
 pnpm-debug.log*

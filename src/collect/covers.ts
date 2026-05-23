@@ -3,10 +3,10 @@
 import { mkdir, access, writeFile, rename } from "node:fs/promises";
 import { join } from "node:path";
 
-// 默认存到 public/covers(Next 静态目录,直接以 /covers/<file> 提供)。
-// 可用 COVERS_DIR 覆盖;但站内 URL 固定为 /covers/<file>,故覆盖路径需被映射到该 URL
-// (例如 Docker 把数据卷挂到 <app>/public/covers,详见 docs/deploy.md)。
-const COVERS_DIR = process.env.COVERS_DIR || join(process.cwd(), "public", "covers");
+// 封面存储目录。可用 COVERS_DIR 覆盖(Docker 里指向数据卷 /data/covers)。
+// 站内 URL 固定为 /covers/<file>,由路由处理器 src/app/covers/[...path]/route.ts 直接从此目录流式返回
+// (不依赖 public/ 静态托管:运行时新写入的文件不会进 next start 的快照,会 404)。
+export const COVERS_DIR = process.env.COVERS_DIR || join(process.cwd(), "public", "covers");
 const PUBLIC_BASE = "/covers";
 const UA = "Mozilla/5.0 (luhub cover fetcher)";
 const TIMEOUT_MS = 10_000;

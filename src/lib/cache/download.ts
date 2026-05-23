@@ -12,6 +12,9 @@ const UA = "Mozilla/5.0 (luhub video cacher)";
 const TIMEOUT_MS = Number(process.env.VIDEO_CACHE_TIMEOUT_MS) || 30 * 60_000;
 // 无数据/无进度判定为坏流的阈值（也覆盖「连不上」：连接迟迟不返回数据同样会触发）。
 const STALL_MS = Number(process.env.VIDEO_CACHE_STALL_MS) || 60_000;
+// ffmpeg 的 I/O 停滞由其自身 -rw_timeout(=STALL_MS) 处理；我们的看门狗放宽到 3 倍，
+// 仅作真正卡死(非 I/O)的兜底，避免把慢但仍在工作的合并误杀。
+const FFMPEG_STALL_MS = STALL_MS * 3;
 const FFMPEG_BIN = process.env.FFMPEG_BIN || "ffmpeg";
 
 // 流式下载 mp4 直链到 absFile，返回字节数。卡住（STALL_MS 无数据）或超总时长即中止并抛错。
@@ -93,8 +96,8 @@ function runFfmpeg(args: string[]): Promise<void> {
     };
     const hardTimer = setTimeout(() => kill(`总超时（${TIMEOUT_MS}ms）`), TIMEOUT_MS);
     const stallTimer = setInterval(() => {
-      if (Date.now() - lastTick > STALL_MS) kill(`无进度超过 ${STALL_MS}ms`);
-    }, Math.min(STALL_MS, 5_000));
+      if (Date.now() - lastTick > FFMPEG_STALL_MS) kill(`无进度超过 ${FFMPEG_STALL_MS}ms`);
+    }, Math.min(FFMPEG_STALL_MS, 5_000));
     const clear = () => {
       clearTimeout(hardTimer);
       clearInterval(stallTimer);

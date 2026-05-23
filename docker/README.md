@@ -18,13 +18,15 @@
 4. 访问 `http://<NAS-IP>:3000`,后台在 `/admin`(用上面的密码登录)。
 
 数据库文件在 `/mnt/user/appdata/luhub/dev.db`(挂载卷,持久化)——**记得纳入 Unraid 备份**。
-采集下载的封面图在同卷的 `/mnt/user/appdata/luhub/covers/`(容器内 `public/covers` 由
-`entrypoint.sh` 软链到 `/data/covers`),随 DB 一起持久、一并备份;重建容器不丢、不必重抓。
+采集下载的封面图在同卷的 `/mnt/user/appdata/luhub/covers/`(`COVERS_DIR=/data/covers`,见
+Dockerfile),随 DB 一起持久、一并备份;重建容器不丢、不必重抓。封面与缓存视频都由站内路由
+(`/covers`、`/videos`)在请求时直接从该目录流式返回,**不经 public/ 静态托管**(否则运行时
+新写入的文件会被 `next start` 的快照漏掉而 404)。
 
 前台播放某集时,后台会把该集**永久缓存成本地 mp4**(m3u8 经镜像内置的 `ffmpeg` 无损合并),
-落在同卷的 `/mnt/user/appdata/luhub/videos/`(容器内 `public/videos` 软链到 `/data/videos`),
-播放器里随之多出一条「缓存线路」直接播本地文件。**视频体积大**,注意磁盘容量与备份策略;
-如需关闭设环境变量 `DISABLE_VIDEO_CACHE=1`(其余可调项见 `.env.example`)。
+落在同卷的 `/mnt/user/appdata/luhub/videos/`(`VIDEOS_DIR=/data/videos`),播放器里随之多出
+一条「缓存线路」直接播本地文件。**视频体积大**,注意磁盘容量与备份策略;如需关闭设环境变量
+`DISABLE_VIDEO_CACHE=1`(其余可调项见 `.env.example`)。
 
 ### 首次灌示例数据(可选)
 想先看到界面有内容:在 compose 里把 `SEED: "1"` 取消注释,起一次容器(会写入离线
