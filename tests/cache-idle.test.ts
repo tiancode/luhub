@@ -184,6 +184,23 @@ test("prepareEpisodeCache 一集一份：另一线路已 ready 时跳过、否�
   assert.equal(row?.status, "pending");
 });
 
+test("并发 prepareEpisodeCache 同一集不同线路 → 只产生一份在用副本", async () => {
+  const v = await makeVideo("1", "剧A", [
+    { name: "线路1", eps: [{ name: "第01集", url: "http://e/a1.m3u8" }] },
+    { name: "线路2", eps: [{ name: "第01集", url: "http://e/b1.m3u8" }] },
+  ]);
+  const [id1, id2] = await Promise.all([
+    store.prepareEpisodeCache({ videoId: v.id, lineName: "线路1", epName: "第01集", url: "http://e/a1.m3u8", sortOrder: 0 }),
+    store.prepareEpisodeCache({ videoId: v.id, lineName: "线路2", epName: "第01集", url: "http://e/b1.m3u8", sortOrder: 0 }),
+  ]);
+  // 恰有一个建库、另一个被「一集一份」去重为 null。
+  assert.equal([id1, id2].filter((x) => x != null).length, 1);
+  const active = await prisma.cachedEpisode.count({
+    where: { videoId: v.id, epName: "第01集", status: { in: ["ready", "downloading", "pending"] } },
+  });
+  assert.equal(active, 1);
+});
+
 test("idleCacheEnabled 默认开启，受 DISABLE_IDLE_CACHE / DISABLE_VIDEO_CACHE 控制", () => {
   const saved = {
     v: process.env.DISABLE_VIDEO_CACHE,
