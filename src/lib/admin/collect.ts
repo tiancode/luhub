@@ -118,6 +118,14 @@ export async function runCollect(
         message: tail() || null,
       },
     });
+
+    // 采集到新视频后，若空闲预缓存循环此前已停止（库已全缓存），重新点燃；失败不影响采集。
+    try {
+      const { tickIdleCache, idleCacheEnabled } = await import("@/lib/cache/idle");
+      if (idleCacheEnabled()) void tickIdleCache();
+    } catch (e) {
+      console.error("[cache] 采集后触发空闲预缓存失败:", e);
+    }
   } catch (e) {
     await prisma.collectRun.update({
       where: { id: runId },

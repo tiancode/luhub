@@ -16,7 +16,7 @@ export async function register(): Promise<void> {
   // 启动时把中断的任务复位并重新入队，避免它们永久卡住（否则用户重播会被去重跳过）。
   if (process.env.DISABLE_VIDEO_CACHE === "1") return;
   try {
-    const { enqueueCacheJob } = await import("@/lib/cache/cache");
+    const { enqueueCacheJob, setDrainHook } = await import("@/lib/cache/cache");
     await prisma.cachedEpisode.updateMany({
       where: { status: "downloading" },
       data: { status: "pending" },
@@ -27,6 +27,14 @@ export async function register(): Promise<void> {
     });
     for (const r of pending) enqueueCacheJob(r.id);
     if (pending.length) console.log(`[cache] 启动恢复 ${pending.length} 个未完成缓存任务`);
+
+    // 空闲预缓存（默认开启）：每个任务排空后自动挑下一集，充分利用空闲时间。
+    const { tickIdleCache, idleCacheEnabled } = await import("@/lib/cache/idle");
+    if (idleCacheEnabled()) {
+      setDrainHook(() => void tickIdleCache());
+      // 启动恢复未入队任何任务时队列已空闲，立即点燃循环；否则 tick 内部守卫会自行让位。
+      void tickIdleCache();
+    }
   } catch (e) {
     console.error("[cache] 启动恢复未完成任务失败:", e);
   }
