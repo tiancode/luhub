@@ -1,4 +1,5 @@
 import { GROUPS } from "@/lib/constants";
+import { SORT_OPTIONS } from "@/lib/videos";
 import { type ListParams } from "@/lib/listParams";
 import { FilterRow } from "@/components/FilterRow";
 
@@ -47,6 +48,14 @@ export function FilterBar({
         current={current}
         activeValue={current.year ?? ""}
         options={years.map((y) => ({ label: String(y), value: String(y) }))}
+      />
+      <FilterRow
+        label="排序"
+        patchKey="sort"
+        current={current}
+        activeValue={current.sort ?? ""}
+        options={SORT_OPTIONS}
+        includeAll={false}
       />
     </div>
   );

@@ -19,7 +19,32 @@ export interface ListQuery {
   area?: string;
   year?: string;
   type?: string;
+  sort?: string;
   page?: number;
+}
+
+/**
+ * 排序白名单：key → Prisma orderBy。绝不直接拼用户传入的字符串，
+ * 既防注入也防排到没意义的字段。新增排序在此加一行即可。
+ * 空 key / 未知 key 一律回落到 "latest"（最新发布）。
+ */
+const SORTS = {
+  latest: [{ releasedAt: { sort: "desc", nulls: "last" } }, { id: "desc" }],
+  score: [{ score: { sort: "desc", nulls: "last" } }, { id: "desc" }],
+  added: [{ createdAt: "desc" }, { id: "desc" }],
+} satisfies Record<string, Prisma.VideoOrderByWithRelationInput[]>;
+
+export type SortKey = keyof typeof SORTS;
+
+/** 排序行的展示选项（顺序即 UI 顺序）。latest 用空 value，即默认、URL 不带 sort。 */
+export const SORT_OPTIONS: { label: string; value: string }[] = [
+  { label: "最新发布", value: "" },
+  { label: "评分最高", value: "score" },
+  { label: "最近收录", value: "added" },
+];
+
+function resolveOrder(sort?: string): Prisma.VideoOrderByWithRelationInput[] {
+  return SORTS[sort as SortKey] ?? SORTS.latest;
 }
 
 function buildWhere(q: ListQuery): Prisma.VideoWhereInput {
@@ -43,7 +68,7 @@ export async function getVideoList(q: ListQuery) {
     prisma.video.findMany({
       where,
       select: cardSelect,
-      orderBy: [{ releasedAt: { sort: "desc", nulls: "last" } }, { id: "desc" }],
+      orderBy: resolveOrder(q.sort),
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
     }),

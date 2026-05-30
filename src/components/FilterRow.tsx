@@ -18,14 +18,19 @@ export function FilterRow({
   activeValue,
   current,
   patchKey,
+  includeAll = true,
 }: {
   label: string;
   options: Option[];
   activeValue: string;
   current: ListParams;
   patchKey: keyof ListParams;
+  /** 是否在最前面插入「全部」项。排序行总有默认值，应传 false。 */
+  includeAll?: boolean;
 }) {
-  const all: Option[] = [{ label: "全部", value: "" }, ...options];
+  const all: Option[] = includeAll
+    ? [{ label: "全部", value: "" }, ...options]
+    : options;
   const collapsible = all.length > COLLAPSED_LIMIT;
   // 当前选中项落在折叠区之外时，默认展开，避免选中态被藏起来。
   const activeHidden =

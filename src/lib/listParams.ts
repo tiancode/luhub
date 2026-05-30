@@ -3,6 +3,7 @@ export interface ListParams {
   area?: string;
   year?: string;
   type?: string; // categoryId
+  sort?: string; // 排序方式，空 = 默认（最新发布）
   page?: number;
 }
 
@@ -19,6 +20,7 @@ export function buildListHref(
   if (merged.area) sp.set("area", merged.area);
   if (merged.year) sp.set("year", merged.year);
   if (merged.type) sp.set("type", merged.type);
+  if (merged.sort) sp.set("sort", merged.sort);
   if (merged.page && merged.page > 1) sp.set("page", String(merged.page));
 
   const qs = sp.toString();
