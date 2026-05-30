@@ -145,6 +145,7 @@ export default async function VodDetailPage({ params }: { params: Params }) {
             initialLineIdx={initialLineIdx}
             initialEpIdx={initialEpIdx}
             resumePosition={resumePosition}
+            reverseEpisodes={video.category?.group === "anime"}
           />
         )}
       </section>
