@@ -69,3 +69,12 @@ export async function getResume(visitorId: string, videoId: number): Promise<Res
     select: { lineName: true, epName: true, epIndex: true, position: true },
   });
 }
+
+// 该访客对某影片的打分（1-5），未打分返回 0。供 vod 页初始化打分控件。
+export async function getMyRating(visitorId: string, videoId: number): Promise<number> {
+  const hit = await prisma.rating.findUnique({
+    where: { visitorId_videoId: { visitorId, videoId } },
+    select: { score: true },
+  });
+  return hit?.score ?? 0;
+}

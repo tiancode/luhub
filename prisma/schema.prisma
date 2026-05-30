@@ -88,11 +88,15 @@ model Video {
   actor       String?
   director    String?
   content     String?
-  score       Float?
+  score       Float? // 源站评分（vod_score），与本站访客打分区分
   categoryId  Int?
   releasedAt  DateTime? // vod_time
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  // 本站访客打分的反范式聚合：每次打分后由 rateVideo 重算写入，便于按均分排序/加索引。
+  ratingAvg   Float? // 访客均分（1-5），无人打分为 null
+  ratingCount Int    @default(0)
 
   source         Source          @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   category       Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
@@ -100,12 +104,30 @@ model Video {
   cachedEpisodes CachedEpisode[]
   favorites      Favorite[]
   watchHistory   WatchHistory[]
+  ratings        Rating[]
 
   @@unique([sourceId, sourceVodId])
   @@index([categoryId])
   @@index([year])
   @@index([area])
   @@index([releasedAt])
+  @@index([createdAt]) // 「最近收录」排序
+  @@index([ratingAvg]) // 「本站评分」排序
+}
+
+/// 访客对影片的打分（无登录，按匿名 visitorId 隔离，每访客每影片一条）
+model Rating {
+  id        Int      @id @default(autoincrement())
+  visitorId String // cookie 里的随机 UUID
+  videoId   Int
+  score     Int // 1-5 星
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([visitorId, videoId])
+  @@index([videoId])
 }
 
 /// 播放线路（对应 vod_play_from 的每一组）

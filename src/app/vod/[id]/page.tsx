@@ -4,8 +4,9 @@ import { getVideoDetail } from "@/lib/videos";
 import { GROUP_LABELS } from "@/lib/constants";
 import { Player, type PlayerLine } from "@/components/Player";
 import { FavoriteButton } from "@/components/FavoriteButton";
+import { RatingWidget } from "@/components/RatingWidget";
 import { getVisitorId } from "@/lib/visitor";
-import { getResume, isFavorited, type ResumeInfo } from "@/lib/library/queries";
+import { getMyRating, getResume, isFavorited, type ResumeInfo } from "@/lib/library/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -56,11 +57,15 @@ export default async function VodDetailPage({ params }: { params: Params }) {
       : null;
   const lines: PlayerLine[] = [...video.playSources, ...(cacheLine ? [cacheLine] : [])];
 
-  // 匿名访客：收藏状态 + 续播点（无 cookie 则视为新访客）。
+  // 匿名访客：收藏状态 + 续播点 + 我的打分（无 cookie 则视为新访客）。
   const visitorId = await getVisitorId();
-  const [favorited, resume] = visitorId
-    ? await Promise.all([isFavorited(visitorId, video.id), getResume(visitorId, video.id)])
-    : [false, null];
+  const [favorited, resume, myRating] = visitorId
+    ? await Promise.all([
+        isFavorited(visitorId, video.id),
+        getResume(visitorId, video.id),
+        getMyRating(visitorId, video.id),
+      ])
+    : [false, null, 0];
   const { initialLineIdx, initialEpIdx, resumePosition } = locateResume(lines, resume);
 
   const meta: [string, string | null | undefined][] = [
@@ -71,7 +76,7 @@ export default async function VodDetailPage({ params }: { params: Params }) {
     ["语言", video.lang],
     ["导演", video.director],
     ["主演", video.actor],
-    ["评分", video.score ? String(video.score) : null],
+    ["源站评分", video.score ? String(video.score) : null],
     ["状态", video.remarks],
     ["来源", video.source?.name],
   ];
@@ -108,6 +113,15 @@ export default async function VodDetailPage({ params }: { params: Params }) {
                 </div>
               ))}
           </dl>
+          <div className="mt-4 flex items-center gap-2 text-sm">
+            <span className="text-muted shrink-0">本站评分:</span>
+            <RatingWidget
+              videoId={video.id}
+              initialMine={myRating}
+              initialAvg={video.ratingAvg}
+              initialCount={video.ratingCount}
+            />
+          </div>
         </div>
       </div>
 
@@ -131,6 +145,7 @@ export default async function VodDetailPage({ params }: { params: Params }) {
             initialLineIdx={initialLineIdx}
             initialEpIdx={initialEpIdx}
             resumePosition={resumePosition}
+            reverseEpisodes={video.category?.group === "anime"}
           />
         )}
       </section>

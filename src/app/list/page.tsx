@@ -31,6 +31,7 @@ export default async function ListPage({
     area: pick(sp.area),
     year: pick(sp.year),
     type: pick(sp.type),
+    sort: pick(sp.sort),
     page: Number(pick(sp.page) ?? "1") || 1,
   };
 

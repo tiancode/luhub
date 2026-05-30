@@ -65,6 +65,47 @@ export async function recordHistory(input: HistoryInput): Promise<void> {
   });
 }
 
+export interface RatingResult {
+  mine: number; // 本访客打分（1-5），0=未打分
+  avg: number | null; // 本站均分
+  count: number; // 打分人数
+}
+
+// 访客给影片打分（1-5 星）。每访客每影片一条;打分后重算反范式聚合写回 Video。
+export async function rateVideo(videoId: number, score: number): Promise<RatingResult | null> {
+  const id = Number(videoId);
+  const s = Math.trunc(Number(score));
+  if (!Number.isInteger(id) || id <= 0) return null;
+  if (!Number.isInteger(s) || s < 1 || s > 5) return null;
+
+  const visitorId = await ensureVisitorId();
+  if (!(await videoExists(id))) return null;
+
+  // upsert 打分 + 重算该影片均分/人数,同事务写回,避免并发下聚合漂移。
+  const agg = await prisma.$transaction(async (tx) => {
+    await tx.rating.upsert({
+      where: { visitorId_videoId: { visitorId, videoId: id } },
+      create: { visitorId, videoId: id, score: s },
+      update: { score: s },
+    });
+    const a = await tx.rating.aggregate({
+      where: { videoId: id },
+      _avg: { score: true },
+      _count: { _all: true },
+    });
+    const avg = a._avg.score != null ? Math.round(a._avg.score * 10) / 10 : null;
+    const count = a._count._all;
+    await tx.video.update({
+      where: { id },
+      data: { ratingAvg: avg, ratingCount: count },
+    });
+    return { avg, count };
+  });
+
+  revalidatePath(`/vod/${id}`);
+  return { mine: s, avg: agg.avg, count: agg.count };
+}
+
 export async function removeFavorite(videoId: number): Promise<void> {
   const id = Number(videoId);
   if (!Number.isInteger(id) || id <= 0) return;

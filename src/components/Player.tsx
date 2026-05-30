@@ -31,12 +31,14 @@ export function Player({
   initialLineIdx = 0,
   initialEpIdx = 0,
   resumePosition = 0,
+  reverseEpisodes = false,
 }: {
   videoId: number;
   lines: PlayerLine[];
   initialLineIdx?: number;
   initialEpIdx?: number;
   resumePosition?: number;
+  reverseEpisodes?: boolean; // 番剧等倒序展示集数（最新一集在前）；仅改展示顺序，索引仍为真实集序
 }) {
   const [lineIdx, setLineIdx] = useState(initialLineIdx);
   const [epIdx, setEpIdx] = useState(initialEpIdx);
@@ -324,21 +326,27 @@ export function Player({
       )}
 
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-8">
-        {episodes.map((e, i) => (
-          <button
-            key={e.id}
-            type="button"
-            onClick={() => setEpIdx(i)}
-            title={e.name}
-            className={`truncate rounded border px-2 py-1.5 text-center text-sm transition-colors ${
-              i === epIdx
-                ? "border-primary bg-primary text-white"
-                : "border-border bg-surface text-muted hover:border-primary hover:text-foreground"
-            }`}
-          >
-            {e.name}
-          </button>
-        ))}
+        {(reverseEpisodes
+          ? episodes.map((_, i) => episodes.length - 1 - i)
+          : episodes.map((_, i) => i)
+        ).map((i) => {
+          const e = episodes[i];
+          return (
+            <button
+              key={e.id}
+              type="button"
+              onClick={() => setEpIdx(i)}
+              title={e.name}
+              className={`truncate rounded border px-2 py-1.5 text-center text-sm transition-colors ${
+                i === epIdx
+                  ? "border-primary bg-primary text-white"
+                  : "border-border bg-surface text-muted hover:border-primary hover:text-foreground"
+              }`}
+            >
+              {e.name}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
