@@ -32,12 +32,14 @@ export function FilterRow({
     ? [{ label: "全部", value: "" }, ...options]
     : options;
   const collapsible = all.length > COLLAPSED_LIMIT;
-  // 当前选中项落在折叠区之外时，默认展开，避免选中态被藏起来。
-  const activeHidden =
-    collapsible && all.findIndex((o) => o.value === activeValue) >= COLLAPSED_LIMIT;
-  const [expanded, setExpanded] = useState(activeHidden);
+  const [expanded, setExpanded] = useState(false);
 
-  const visible = collapsible && !expanded ? all.slice(0, COLLAPSED_LIMIT) : all;
+  let visible = collapsible && !expanded ? all.slice(0, COLLAPSED_LIMIT) : all;
+  // 折叠时若选中项落在折叠区外，把它补进来——保证选中态始终可见（含客户端导航后）。
+  if (collapsible && !expanded && !visible.some((o) => o.value === activeValue)) {
+    const active = all.find((o) => o.value === activeValue);
+    if (active) visible = [...visible, active];
+  }
 
   return (
     <div className="flex items-start gap-3 py-2 border-b border-border/60 last:border-0">

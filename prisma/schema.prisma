@@ -111,7 +111,8 @@ model Video {
   @@index([year])
   @@index([area])
   @@index([releasedAt])
-  @@index([ratingAvg])
+  @@index([createdAt]) // 「最近收录」排序
+  @@index([ratingAvg]) // 「本站评分」排序
 }
 
 /// 访客对影片的打分（无登录，按匿名 visitorId 隔离，每访客每影片一条）

@@ -47,7 +47,7 @@ export const SORT_OPTIONS: { label: string; value: string }[] = [
   { label: "最近收录", value: "added" },
 ];
 
-function resolveOrder(sort?: string): Prisma.VideoOrderByWithRelationInput[] {
+export function resolveOrder(sort?: string): Prisma.VideoOrderByWithRelationInput[] {
   return SORTS[sort as SortKey] ?? SORTS.latest;
 }
 
