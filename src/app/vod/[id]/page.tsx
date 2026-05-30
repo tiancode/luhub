@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getVideoDetail } from "@/lib/videos";
-import { GROUP_LABELS } from "@/lib/constants";
+import { GROUP_LABELS, groupReversesEpisodes } from "@/lib/constants";
 import { Player, type PlayerLine } from "@/components/Player";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { RatingWidget } from "@/components/RatingWidget";
@@ -145,7 +145,7 @@ export default async function VodDetailPage({ params }: { params: Params }) {
             initialLineIdx={initialLineIdx}
             initialEpIdx={initialEpIdx}
             resumePosition={resumePosition}
-            reverseEpisodes={video.category?.group === "anime"}
+            reverseEpisodes={groupReversesEpisodes(video.category?.group)}
           />
         )}
       </section>

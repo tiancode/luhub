@@ -51,6 +51,8 @@ export function Player({
 
   const line = lines[lineIdx];
   const episodes = line?.episodes ?? [];
+  // 展示顺序的真实集索引；倒序时翻转，但索引始终指向原集序（续播/高亮/缓存都用它）。
+  const epOrder = reverseEpisodes ? [...episodes.keys()].reverse() : [...episodes.keys()];
   const ep = episodes[epIdx];
   const url = ep?.url;
 
@@ -326,10 +328,7 @@ export function Player({
       )}
 
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-8">
-        {(reverseEpisodes
-          ? episodes.map((_, i) => episodes.length - 1 - i)
-          : episodes.map((_, i) => i)
-        ).map((i) => {
+        {epOrder.map((i) => {
           const e = episodes[i];
           return (
             <button

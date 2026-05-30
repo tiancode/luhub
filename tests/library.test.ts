@@ -1,30 +1,19 @@
 import { test, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { createTempDatabase, setupDb, teardownDb, makeVideo, VIS, OTHER } from "./helpers/db";
 
-// 必须在 import prisma / queries 之前设置 DATABASE_URL：prisma 单例在 import 时读取它。
-const dir = mkdtempSync(join(tmpdir(), "luhub-lib-"));
-process.env.DATABASE_URL = `file:${join(dir, "test.db")}`;
+// 须在 import prisma 之前设置 DATABASE_URL（prisma 单例在 import 时读取它）。
+createTempDatabase("luhub-lib-");
 
 let prisma: typeof import("../src/lib/prisma").prisma;
 let q: typeof import("../src/lib/library/queries");
 
 before(async () => {
-  execFileSync("pnpm", ["exec", "prisma", "db", "push", "--accept-data-loss"], {
-    env: process.env,
-    stdio: "ignore",
-  });
-  ({ prisma } = await import("../src/lib/prisma"));
+  prisma = await setupDb();
   q = await import("../src/lib/library/queries");
 });
 
-after(async () => {
-  await prisma.$disconnect();
-  rmSync(dir, { recursive: true, force: true });
-});
+after(() => teardownDb(prisma));
 
 beforeEach(async () => {
   await prisma.favorite.deleteMany();
@@ -33,21 +22,9 @@ beforeEach(async () => {
   await prisma.source.deleteMany();
 });
 
-async function makeVideo(vodId: string, name: string) {
-  const source = await prisma.source.upsert({
-    where: { name: "test-src" },
-    create: { name: "test-src", apiUrl: "http://x" },
-    update: {},
-  });
-  return prisma.video.create({ data: { sourceId: source.id, sourceVodId: vodId, name } });
-}
-
-const VIS = "11111111-1111-4111-8111-111111111111";
-const OTHER = "22222222-2222-4222-8222-222222222222";
-
 test("收藏按访客隔离：只看到自己的收藏", async () => {
-  const a = await makeVideo("1", "剧A");
-  const b = await makeVideo("2", "剧B");
+  const a = await makeVideo(prisma, "1", "剧A");
+  const b = await makeVideo(prisma, "2", "剧B");
   await prisma.favorite.create({ data: { visitorId: VIS, videoId: a.id } });
   await prisma.favorite.create({ data: { visitorId: OTHER, videoId: b.id } });
 
@@ -59,8 +36,8 @@ test("收藏按访客隔离：只看到自己的收藏", async () => {
 });
 
 test("收藏按 createdAt 倒序（最近收藏在前）", async () => {
-  const a = await makeVideo("1", "剧A");
-  const b = await makeVideo("2", "剧B");
+  const a = await makeVideo(prisma, "1", "剧A");
+  const b = await makeVideo(prisma, "2", "剧B");
   await prisma.favorite.create({ data: { visitorId: VIS, videoId: a.id, createdAt: new Date(1000) } });
   await prisma.favorite.create({ data: { visitorId: VIS, videoId: b.id, createdAt: new Date(2000) } });
 
@@ -69,8 +46,8 @@ test("收藏按 createdAt 倒序（最近收藏在前）", async () => {
 });
 
 test("历史按 updatedAt 倒序，并带回续播字段", async () => {
-  const a = await makeVideo("1", "剧A");
-  const b = await makeVideo("2", "剧B");
+  const a = await makeVideo(prisma, "1", "剧A");
+  const b = await makeVideo(prisma, "2", "剧B");
   await prisma.watchHistory.create({
     data: { visitorId: VIS, videoId: a.id, lineName: "线路1", epName: "第03集", epIndex: 2, position: 120, duration: 1400, updatedAt: new Date(1000) },
   });
@@ -87,7 +64,7 @@ test("历史按 updatedAt 倒序，并带回续播字段", async () => {
 });
 
 test("getResume 取该影片续播点；无历史返回 null", async () => {
-  const a = await makeVideo("1", "剧A");
+  const a = await makeVideo(prisma, "1", "剧A");
   await prisma.watchHistory.create({
     data: { visitorId: VIS, videoId: a.id, lineName: "线路1", epName: "第05集", epIndex: 4, position: 300 },
   });

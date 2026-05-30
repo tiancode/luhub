@@ -11,6 +11,14 @@ export const GROUP_LABELS: Record<string, string> = Object.fromEntries(
   GROUPS.map((g) => [g.key, g.label]),
 );
 
+/** 这些分组的剧集默认倒序展示（最新一集在前），如番剧/动漫。 */
+const REVERSE_EPISODE_GROUPS: ReadonlySet<GroupKey> = new Set(["anime"]);
+
+/** 该分组是否倒序展示剧集。分组排序策略集中在此，调用点不再硬编码分组名。 */
+export function groupReversesEpisodes(group?: string | null): boolean {
+  return group != null && REVERSE_EPISODE_GROUPS.has(group as GroupKey);
+}
+
 /// 根据资源站分类名推断本站分组
 export function inferGroup(typeName: string): GroupKey {
   const n = typeName ?? "";

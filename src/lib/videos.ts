@@ -40,8 +40,11 @@ const SORTS = {
 
 export type SortKey = keyof typeof SORTS;
 
-/** 排序行的展示选项（顺序即 UI 顺序）。latest 用空 value，即默认、URL 不带 sort。 */
-export const SORT_OPTIONS: { label: string; value: string }[] = [
+/**
+ * 排序行的展示选项（顺序即 UI 顺序）。value 限定为 SortKey | ""——空=默认(latest)、
+ * URL 不带 sort；其余必须是 SORTS 里真实存在的 key（拼错/删 key 会编译报错）。
+ */
+export const SORT_OPTIONS: { label: string; value: SortKey | "" }[] = [
   { label: "最新发布", value: "" },
   { label: "本站评分", value: "rating" },
   { label: "最近收录", value: "added" },
