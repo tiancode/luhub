@@ -30,7 +30,11 @@ export interface ListQuery {
  */
 const SORTS = {
   latest: [{ releasedAt: { sort: "desc", nulls: "last" } }, { id: "desc" }],
-  score: [{ score: { sort: "desc", nulls: "last" } }, { id: "desc" }],
+  rating: [
+    { ratingAvg: { sort: "desc", nulls: "last" } },
+    { ratingCount: "desc" }, // 同分时打分人数多的靠前
+    { id: "desc" },
+  ],
   added: [{ createdAt: "desc" }, { id: "desc" }],
 } satisfies Record<string, Prisma.VideoOrderByWithRelationInput[]>;
 
@@ -39,7 +43,7 @@ export type SortKey = keyof typeof SORTS;
 /** 排序行的展示选项（顺序即 UI 顺序）。latest 用空 value，即默认、URL 不带 sort。 */
 export const SORT_OPTIONS: { label: string; value: string }[] = [
   { label: "最新发布", value: "" },
-  { label: "评分最高", value: "score" },
+  { label: "本站评分", value: "rating" },
   { label: "最近收录", value: "added" },
 ];
 
